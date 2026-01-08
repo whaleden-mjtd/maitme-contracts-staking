@@ -488,13 +488,17 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
     function _removePosition(address user, uint256 index) internal {
         uint256 lastIndex = userStakes[user].length - 1;
 
+        // Get the stakeId being removed BEFORE any swapping
+        uint256 removedStakeId = userStakes[user][index].stakeId;
+
         if (index != lastIndex) {
+            // Move last position to the removed index
             StakePosition memory lastPosition = userStakes[user][lastIndex];
             userStakes[user][index] = lastPosition;
             stakeIdToIndex[user][lastPosition.stakeId] = index;
         }
 
-        uint256 removedStakeId = userStakes[user][index].stakeId;
+        // Mark the removed stakeId as non-existent
         stakeIdExists[user][removedStakeId] = false;
 
         userStakes[user].pop();

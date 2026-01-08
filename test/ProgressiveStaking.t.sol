@@ -7,7 +7,22 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 /**
  * @title ProgressiveStakingTest
- * @notice Test suite for ProgressiveStaking contract
+ * @notice Core test suite for ProgressiveStaking contract
+ * @dev Tests cover basic functionality: staking, rewards, withdrawals, and admin operations.
+ *
+ * Test Categories:
+ * - Stake Tests: Creating and managing stake positions
+ * - Rewards Tests: Calculating and claiming rewards across tiers
+ * - Withdraw Tests: 90-day notice period withdrawal flow
+ * - Admin Tests: Treasury management, tier rates, emergency functions
+ * - Tier Tests: Tier progression based on staking duration
+ * - Edge Cases: Compound rewards across multiple tiers
+ *
+ * Test Environment Setup:
+ * - Mock ERC20 token deployed for staking
+ * - Owner, 2 regular users, and 1 founder address
+ * - Treasury pre-funded with 100,000 tokens
+ * - Tier rates: 0.5%, 0.7%, 2%, 4%, 5%, 6% (in basis points: 50, 70, 200, 400, 500, 600)
  */
 contract ProgressiveStakingTest is Test {
     ProgressiveStaking public staking;
@@ -22,8 +37,12 @@ contract ProgressiveStakingTest is Test {
     uint256 public constant TREASURY_AMOUNT = 100_000 ether;
 
     // Tier rates in basis points (50 = 0.5%, 100 = 1%, etc.)
-    uint256[6] public tierRates = [uint256(50), 100, 200, 300, 400, 500];
+    uint256[6] public tierRates = [uint256(50), 70, 200, 400, 500, 600];
 
+    /**
+     * @notice Sets up the test environment before each test
+     * @dev Deploys contracts, mints tokens, funds treasury, and approves spending
+     */
     function setUp() public {
         // Deploy mock token
         token = new ERC20Mock("Staking Token", "STK");
@@ -61,6 +80,14 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Stake Tests ============
 
+    /**
+     * @notice Test basic staking functionality
+     * @dev Verifies that:
+     *      - User can stake tokens successfully
+     *      - Stake count increases correctly
+     *      - Total staked amount is tracked
+     *      - Position has correct stakeId and amount
+     */
     function test_Stake() public {
         uint256 amount = 1000 ether;
 
@@ -75,6 +102,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(positions[0].stakeId, 1);
     }
 
+    /**
+     * @notice Test creating multiple stake positions
+     * @dev Verifies that each stake creates a separate position with unique stakeId.
+     *      User should have 3 positions totaling 6000 tokens.
+     */
     function test_Stake_MultiplePositions() public {
         vm.startPrank(user1);
         staking.stake(1000 ether);
@@ -86,6 +118,10 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.totalStaked(), 6000 ether);
     }
 
+    /**
+     * @notice Test that staking zero amount reverts
+     * @dev Contract should reject zero-amount stakes with ZeroAmount error
+     */
     function test_Stake_RevertZeroAmount() public {
         vm.prank(user1);
         vm.expectRevert(ProgressiveStaking.ZeroAmount.selector);
@@ -94,6 +130,11 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Rewards Tests ============
 
+    /**
+     * @notice Test reward calculation for Tier 1 (0-6 months, 0.5% APY)
+     * @dev After 180 days with 10,000 tokens staked:
+     *      Expected: 10,000 * 0.5% * (180/360) = 25 tokens
+     */
     function test_CalculateRewards_Tier1() public {
         uint256 amount = 10_000 ether;
 
@@ -108,6 +149,13 @@ contract ProgressiveStakingTest is Test {
         assertApproxEqRel(rewards, 25 ether, 0.01e18); // 1% tolerance
     }
 
+    /**
+     * @notice Test reward calculation spanning Tier 1 and Tier 2
+     * @dev After 360 days with 10,000 tokens staked:
+     *      Tier 1: 10,000 * 0.5% * 0.5 = 25 tokens
+     *      Tier 2: 10,025 * 0.7% * 0.5 = 35.09 tokens (compounded)
+     *      Total: ~60.09 tokens
+     */
     function test_CalculateRewards_Tier2() public {
         uint256 amount = 10_000 ether;
 
@@ -119,11 +167,18 @@ contract ProgressiveStakingTest is Test {
 
         uint256 rewards = staking.calculateTotalRewards(user1);
         // Tier 1: 10,000 * 0.5% * 0.5 = 25
-        // Tier 2: 10,025 * 1.0% * 0.5 = 50.125
-        // Total: ~75.125 tokens
-        assertApproxEqRel(rewards, 75.125 ether, 0.01e18);
+        // Tier 2: 10,025 * 0.7% * 0.5 = 35.0875
+        // Total: ~60.09 tokens
+        assertApproxEqRel(rewards, 60.0875 ether, 0.01e18);
     }
 
+    /**
+     * @notice Test claiming rewards from a specific position
+     * @dev Verifies that:
+     *      - User receives tokens after claiming
+     *      - Rewards reset to 0 after claim
+     *      - lastClaimTime is updated
+     */
     function test_ClaimRewards() public {
         uint256 amount = 10_000 ether;
 
@@ -145,6 +200,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(rewardsAfterClaim, 0);
     }
 
+    /**
+     * @notice Test claiming rewards from all positions at once
+     * @dev User with multiple positions can claim all rewards in single transaction.
+     *      More gas-efficient than claiming individually.
+     */
     function test_ClaimAllRewards() public {
         vm.startPrank(user1);
         staking.stake(5000 ether);
@@ -163,6 +223,11 @@ contract ProgressiveStakingTest is Test {
         assertApproxEqRel(balanceAfter - balanceBefore, totalRewardsBefore, 0.01e18);
     }
 
+    /**
+     * @notice Test that founders receive no rewards
+     * @dev Founder addresses are set at deployment and earn 0% APY.
+     *      This is a special mode for project founders who stake without interest.
+     */
     function test_FounderNoRewards() public {
         vm.prank(founder);
         staking.stake(10_000 ether);
@@ -175,6 +240,13 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Withdraw Tests ============
 
+    /**
+     * @notice Test requesting a withdrawal (starting 90-day notice period)
+     * @dev Verifies that:
+     *      - Withdraw request is created
+     *      - availableAt is set to current time + 90 days
+     *      - Request is stored in user's pending withdrawals
+     */
     function test_RequestWithdraw() public {
         uint256 amount = 1000 ether;
 
@@ -190,6 +262,13 @@ contract ProgressiveStakingTest is Test {
         assertEq(requests[0].availableAt, block.timestamp + 90 days);
     }
 
+    /**
+     * @notice Test executing withdrawal after notice period
+     * @dev Verifies that:
+     *      - User receives staked tokens back
+     *      - Any pending rewards are also claimed
+     *      - Position is removed if fully withdrawn
+     */
     function test_ExecuteWithdraw() public {
         uint256 amount = 1000 ether;
 
@@ -212,6 +291,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.getUserStakeCount(user1), 0);
     }
 
+    /**
+     * @notice Test that withdrawal fails before notice period ends
+     * @dev 90-day notice period must pass before executeWithdraw succeeds.
+     *      Attempting to withdraw at 89 days should revert with WithdrawNotReady.
+     */
     function test_ExecuteWithdraw_RevertBeforeNoticePeriod() public {
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -227,6 +311,11 @@ contract ProgressiveStakingTest is Test {
         staking.executeWithdraw(1);
     }
 
+    /**
+     * @notice Test cancelling a pending withdrawal request
+     * @dev User can cancel withdrawal request before executing.
+     *      Position remains intact and continues earning rewards.
+     */
     function test_CancelWithdrawRequest() public {
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -241,6 +330,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.getUserStakeCount(user1), 1);
     }
 
+    /**
+     * @notice Test partial withdrawal from a position
+     * @dev User can withdraw part of their stake.
+     *      Remaining amount stays in the position and continues earning.
+     */
     function test_PartialWithdraw() public {
         uint256 amount = 1000 ether;
 
@@ -264,6 +358,10 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Admin Tests ============
 
+    /**
+     * @notice Test depositing tokens to treasury
+     * @dev Only owner can deposit. Treasury funds are used to pay rewards.
+     */
     function test_DepositTreasury() public {
         uint256 additionalAmount = 50_000 ether;
 
@@ -275,6 +373,10 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.getTreasuryBalance(), TREASURY_AMOUNT + additionalAmount);
     }
 
+    /**
+     * @notice Test withdrawing tokens from treasury
+     * @dev Only owner can withdraw unused treasury funds.
+     */
     function test_WithdrawTreasury() public {
         uint256 withdrawAmount = 10_000 ether;
 
@@ -284,6 +386,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.getTreasuryBalance(), TREASURY_AMOUNT - withdrawAmount);
     }
 
+    /**
+     * @notice Test updating tier interest rates
+     * @dev Owner can adjust APY rates for all tiers.
+     *      Rates are in basis points (100 = 1%).
+     */
     function test_UpdateTierRates() public {
         uint256[6] memory newRates = [uint256(100), 200, 300, 400, 500, 600];
 
@@ -294,6 +401,12 @@ contract ProgressiveStakingTest is Test {
         assertEq(tier0.rate, 100);
     }
 
+    /**
+     * @notice Test emergency shutdown functionality
+     * @dev Owner can trigger emergency mode which:
+     *      - Pauses normal operations
+     *      - Allows users to withdraw immediately without notice period
+     */
     function test_EmergencyShutdown() public {
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -310,6 +423,11 @@ contract ProgressiveStakingTest is Test {
         assertEq(staking.getUserStakeCount(user1), 0);
     }
 
+    /**
+     * @notice Test pausing the contract
+     * @dev Admin can pause contract to prevent new stakes and claims.
+     *      Useful for maintenance or security incidents.
+     */
     function test_Pause() public {
         // Owner has DEFAULT_ADMIN_ROLE, can grant ADMIN_ROLE
         vm.startPrank(owner);
@@ -324,6 +442,13 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Tier Tests ============
 
+    /**
+     * @notice Test tier progression over time
+     * @dev Verifies correct tier assignment:
+     *      - Day 0: Tier 1
+     *      - Day 181: Tier 2
+     *      - Day 361: Tier 3
+     */
     function test_GetCurrentTier() public {
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -339,6 +464,14 @@ contract ProgressiveStakingTest is Test {
 
     // ============ Edge Cases ============
 
+    /**
+     * @notice Test compound rewards accumulating across multiple tiers
+     * @dev After 720 days (2 years), rewards compound through Tier 1, 2, and 3:
+     *      Tier 1: 10,000 * 0.5% * 0.5 = 25 tokens
+     *      Tier 2: 10,025 * 0.7% * 0.5 = 35.09 tokens
+     *      Tier 3: 10,060.09 * 2.0% * 1.0 = 201.2 tokens
+     *      Total: ~261.3 tokens
+     */
     function test_RewardsAccumulateAcrossTiers() public {
         uint256 amount = 10_000 ether;
 
@@ -352,9 +485,9 @@ contract ProgressiveStakingTest is Test {
 
         // Rewards should be compounded across tiers
         // Tier 1: 10,000 * 0.5% * 0.5 = 25
-        // Tier 2: 10,025 * 1.0% * 0.5 = 50.125
-        // Tier 3: 10,075.125 * 2.0% * 1.0 = 201.5025
-        // Total: ~276.6 tokens
-        assertApproxEqRel(rewards, 276.6275 ether, 0.01e18);
+        // Tier 2: 10,025 * 0.7% * 0.5 = 35.0875
+        // Tier 3: 10,060.0875 * 2.0% * 1.0 = 201.20175
+        // Total: ~261.3 tokens
+        assertApproxEqRel(rewards, 261.29 ether, 0.01e18);
     }
 }

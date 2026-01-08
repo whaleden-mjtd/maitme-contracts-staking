@@ -10,7 +10,7 @@ import {ProgressiveStaking} from "../src/ProgressiveStaking.sol";
  */
 contract DeployScript is Script {
     // Default tier rates in basis points (50 = 0.5%, 100 = 1%, etc.)
-    uint256[6] public defaultTierRates = [uint256(50), 100, 200, 300, 400, 500];
+    uint256[6] public defaultTierRates = [uint256(50), 70, 200, 400, 500, 600];
 
     function setUp() public {}
 

@@ -18,18 +18,18 @@ Smart contract pro staking ERC20 tokenů s progresivním úročením založeným
 | Tier | Období | APY | Popis |
 |------|--------|-----|-------|
 | 1 | 0-6 měsíců | 0.5% | Vstupní období |
-| 2 | 6-12 měsíců | 1.0% | Základní tier |
+| 2 | 6-12 měsíců | 0.7% | Základní tier |
 | 3 | 12-24 měsíců | 2.0% | Pokročilý tier |
-| 4 | 24-36 měsíců | 3.0% | Věrnostní tier |
-| 5 | 36-48 měsíců | 4.0% | Premium tier |
-| 6 | 48+ měsíců | 5.0% | VIP tier (neomezeno) |
+| 4 | 24-36 měsíců | 4.0% | Věrnostní tier |
+| 5 | 36-48 měsíců | 5.0% | Premium tier |
+| 6 | 48+ měsíců | 6.0% | VIP tier (neomezeno) |
 
 ### Příklad výpočtu
 Uživatel stakuje 10,000 tokenů na 24 měsíců:
 - **Tier 1** (0-6 měsíců): 10,000 × 0.5% × 0.5 = 25 tokenů
-- **Tier 2** (6-12 měsíců): 10,025 × 1.0% × 0.5 = 50.125 tokenů
-- **Tier 3** (12-24 měsíců): 10,075.125 × 2.0% × 1 = 201.5 tokenů
-- **Celkem po 24 měsících**: ~10,276.6 tokenů
+- **Tier 2** (6-12 měsíců): 10,025 × 0.7% × 0.5 = 35.09 tokenů
+- **Tier 3** (12-24 měsíců): 10,060.09 × 2.0% × 1 = 201.2 tokenů
+- **Celkem po 24 měsících**: ~10,261.3 tokenů
 
 ## 3. Architektura řešení
 

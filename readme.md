@@ -132,18 +132,18 @@ Smart contract for staking ERC20 tokens with progressive interest rates based on
 | Tier | Period | APY | Description |
 |------|--------|-----|-------------|
 | 1 | 0-6 months | 0.5% | Entry period |
-| 2 | 6-12 months | 1.0% | Basic tier |
+| 2 | 6-12 months | 0.7% | Basic tier |
 | 3 | 12-24 months | 2.0% | Advanced tier |
-| 4 | 24-36 months | 3.0% | Loyalty tier |
-| 5 | 36-48 months | 4.0% | Premium tier |
-| 6 | 48+ months | 5.0% | VIP tier (unlimited) |
+| 4 | 24-36 months | 4.0% | Loyalty tier |
+| 5 | 36-48 months | 5.0% | Premium tier |
+| 6 | 48+ months | 6.0% | VIP tier (unlimited) |
 
 ### Calculation Example
 User stakes 10,000 tokens for 24 months:
 - **Tier 1** (0-6 months): 10,000 × 0.5% × 0.5 = 25 tokens
-- **Tier 2** (6-12 months): 10,025 × 1.0% × 0.5 = 50.125 tokens
-- **Tier 3** (12-24 months): 10,075.125 × 2.0% × 1 = 201.5 tokens
-- **Total after 24 months**: ~10,276.6 tokens
+- **Tier 2** (6-12 months): 10,025 × 0.7% × 0.5 = 35.09 tokens
+- **Tier 3** (12-24 months): 10,060.09 × 2.0% × 1 = 201.2 tokens
+- **Total after 24 months**: ~10,261.3 tokens
 
 ## 3. Architecture
 
