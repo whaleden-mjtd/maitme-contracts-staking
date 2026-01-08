@@ -1,5 +1,119 @@
 # Smart Contract for Staking with Progressive Interest Rates
 
+## Quick Start
+
+### Prerequisites
+
+- [Git](https://git-scm.com/)
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/whaleden-mjtd/maitme-contracts-staking.git
+cd maitme-contracts-staking
+
+# Install dependencies (git submodules)
+git submodule update --init --recursive
+
+# Install Foundry (if not already installed)
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+### Build
+
+```bash
+forge build
+```
+
+### Test
+
+```bash
+# Run all tests
+forge test
+
+# Run tests with verbose output
+forge test -vvv
+
+# Run specific test
+forge test --match-test test_Stake
+
+# Run tests with gas report
+forge test --gas-report
+```
+
+### Local Development
+
+```bash
+# Start local Anvil node
+anvil
+
+# In another terminal, deploy to local node
+forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+```
+
+### Deploy to Testnet
+
+1. Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` with your configuration:
+
+```
+PRIVATE_KEY=your_private_key_without_0x
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+STAKING_TOKEN_ADDRESS=0x...
+ETHERSCAN_API_KEY=your_etherscan_key
+```
+
+3. Deploy:
+
+```bash
+# Deploy to Sepolia (testnet)
+forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
+
+# Deploy to Mainnet
+forge script script/Deploy.s.sol --rpc-url $MAINNET_RPC_URL --broadcast --verify
+```
+
+### Code Coverage
+
+```bash
+forge coverage
+```
+
+### Format Code
+
+```bash
+forge fmt
+```
+
+### Project Structure
+
+```
+├── src/
+│   └── ProgressiveStaking.sol    # Main staking contract
+├── test/
+│   ├── ProgressiveStaking.t.sol  # Test suite
+│   └── mocks/
+│       └── ERC20Mock.sol         # Mock token for testing
+├── script/
+│   └── Deploy.s.sol              # Deployment script
+├── lib/                          # Dependencies (git submodules)
+│   ├── forge-std/
+│   └── openzeppelin-contracts/
+├── foundry.toml                  # Foundry configuration
+├── remappings.txt                # Import remappings
+└── .env.example                  # Environment variables template
+```
+
+---
+
 ## 1. Project Overview
 
 ### Purpose
