@@ -20,12 +20,12 @@ contract ProgressiveStakingFuzzTest is ProgressiveStakingBaseTest {
 
     /**
      * @notice Fuzz test: Stake with random amounts
-     * @dev Tests that staking works correctly for any valid amount from 1 wei to max balance.
+     * @dev Tests that staking works correctly for any valid amount from MIN_STAKE_AMOUNT to max balance.
      *      Verifies position creation and total staked tracking.
-     * @param amount Random stake amount (bounded to 1 - INITIAL_BALANCE)
+     * @param amount Random stake amount (bounded to MIN_STAKE_AMOUNT - INITIAL_BALANCE)
      */
     function testFuzz_Stake(uint256 amount) public {
-        amount = bound(amount, 1, INITIAL_BALANCE);
+        amount = bound(amount, staking.MIN_STAKE_AMOUNT(), INITIAL_BALANCE);
 
         vm.prank(user1);
         staking.stake(amount);

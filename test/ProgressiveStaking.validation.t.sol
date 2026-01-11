@@ -295,4 +295,77 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         contractBalance = token.balanceOf(address(staking));
         assertEq(contractBalance, staking.totalStaked() + staking.getTreasuryBalance());
     }
+
+    // ============ MIN_STAKE_AMOUNT Tests ============
+
+    /// @notice Test that stake reverts when amount is below MIN_STAKE_AMOUNT
+    function test_StakeRevertsWhenBelowMinimum() public {
+        uint256 minAmount = staking.MIN_STAKE_AMOUNT();
+
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.StakeAmountTooLow.selector);
+        staking.stake(minAmount - 1);
+    }
+
+    /// @notice Test that stake works at exactly MIN_STAKE_AMOUNT
+    function test_StakeAtExactMinimum() public {
+        uint256 minAmount = staking.MIN_STAKE_AMOUNT();
+
+        vm.prank(user1);
+        staking.stake(minAmount);
+
+        assertEq(staking.getUserStakeCount(user1), 1);
+    }
+
+    /// @notice Test dust amount (1 wei) is rejected
+    function test_DustAmountStakeRejected() public {
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.StakeAmountTooLow.selector);
+        staking.stake(1);
+    }
+
+    // ============ Long-term Array Growth Tests ============
+
+    /// @notice Test withdraw request array growth over time
+    function test_WithdrawRequestArrayGrowth() public {
+        // Create 20 stakes
+        vm.startPrank(user1);
+        for (uint256 i = 0; i < 20; i++) {
+            staking.stake(100 ether);
+        }
+        vm.stopPrank();
+
+        // Create and execute 10 withdraw requests (fills up pending limit)
+        for (uint256 cycle = 0; cycle < 5; cycle++) {
+            // Request withdrawals for 2 positions per cycle
+            vm.startPrank(user1);
+            staking.requestWithdraw(cycle * 2 + 1, 50 ether);
+            staking.requestWithdraw(cycle * 2 + 2, 50 ether);
+            vm.stopPrank();
+
+            vm.warp(block.timestamp + 90 days);
+
+            // Execute them
+            vm.startPrank(user1);
+            staking.executeWithdraw(cycle * 2 + 1);
+            staking.executeWithdraw(cycle * 2 + 2);
+            vm.stopPrank();
+        }
+
+        // Array should have 10 requests (all executed)
+        ProgressiveStaking.WithdrawRequest[] memory allRequests = staking.getPendingWithdrawals(user1);
+        assertEq(allRequests.length, 10);
+
+        // But active count should be 0
+        assertEq(staking.pendingWithdrawCount(user1), 0);
+
+        // getActivePendingWithdrawals should return empty
+        ProgressiveStaking.WithdrawRequest[] memory activeRequests = staking.getActivePendingWithdrawals(user1);
+        assertEq(activeRequests.length, 0);
+
+        // User can still create new requests
+        vm.prank(user1);
+        staking.requestWithdraw(11, 50 ether);
+        assertEq(staking.pendingWithdrawCount(user1), 1);
+    }
 }
