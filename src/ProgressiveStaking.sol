@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
@@ -13,7 +12,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
  * @notice Staking contract with progressive interest rates based on staking duration
  * @dev Implements tier-based APY system with automatic compounding
  */
-contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessControl {
+contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -102,10 +101,11 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
         address _stakingToken,
         address[] memory _founders,
         uint256[MAX_TIERS] memory _tierRates
-    ) Ownable(initialOwner) {
+    ) {
         stakingToken = IERC20(_stakingToken);
 
         _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
+        _grantRole(ADMIN_ROLE, initialOwner);
 
         for (uint256 i = 0; i < _founders.length; i++) {
             isFounder[_founders[i]] = true;
@@ -292,7 +292,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
 
     // ============ External Functions - Admin ============
 
-    function depositTreasury(uint256 amount) external onlyOwner {
+    function depositTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert ZeroAmount();
 
         treasuryBalance += amount;
@@ -301,7 +301,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
         emit TreasuryDeposited(msg.sender, amount, block.timestamp);
     }
 
-    function withdrawTreasury(uint256 amount) external onlyOwner {
+    function withdrawTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert ZeroAmount();
         if (amount > treasuryBalance) revert InsufficientTreasury();
 
@@ -311,7 +311,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
         emit TreasuryWithdrawn(msg.sender, amount, block.timestamp);
     }
 
-    function updateTierRates(uint256[MAX_TIERS] calldata newRates) external onlyOwner {
+    function updateTierRates(uint256[MAX_TIERS] calldata newRates) external onlyRole(DEFAULT_ADMIN_ROLE) {
         for (uint8 i = 0; i < MAX_TIERS; i++) {
             if (newRates[i] > RATE_PRECISION) revert InvalidTierRates();
             tiers[i].rate = newRates[i];
@@ -320,7 +320,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, Ownable2Step, AccessCo
         emit TierRatesUpdated(msg.sender, newRates, block.timestamp);
     }
 
-    function emergencyShutdown() external onlyOwner {
+    function emergencyShutdown() external onlyRole(DEFAULT_ADMIN_ROLE) {
         emergencyMode = true;
         _pause();
 

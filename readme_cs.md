@@ -91,15 +91,13 @@ mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
 
 | Funkce | Popis | Oprávnění |
 |--------|-------|-----------|
-| `emergencyShutdown()` | Zahájení emergency módu | Owner |
-| `transferOwnership(address newOwner)` | 2-step přenos vlastnictví | Owner |
-| `acceptOwnership()` | Potvrzení převzetí vlastnictví | Pending Owner |
-| `grantRole(bytes32 role, address account)` | Přidělení Admin role | Owner |
-| `revokeRole(bytes32 role, address account)` | Odebrání Admin role | Owner |
-| `pause() / unpause()` | Pozastavení contractu | Admin/Owner |
-| `updateTierRates(uint256[] rates)` | Úprava úrokových sazeb | Owner |
-| `depositTreasury(uint256 amount)` | Vložení tokenů do treasury | Owner |
-| `withdrawTreasury(uint256 amount)` | Výběr nevyužitých tokenů z treasury | Owner |
+| `emergencyShutdown()` | Zahájení emergency módu | DEFAULT_ADMIN_ROLE |
+| `grantRole(bytes32 role, address account)` | Přidělení role | DEFAULT_ADMIN_ROLE |
+| `revokeRole(bytes32 role, address account)` | Odebrání role | DEFAULT_ADMIN_ROLE |
+| `pause() / unpause()` | Pozastavení contractu | ADMIN_ROLE |
+| `updateTierRates(uint256[] rates)` | Úprava úrokových sazeb | DEFAULT_ADMIN_ROLE |
+| `depositTreasury(uint256 amount)` | Vložení tokenů do treasury | DEFAULT_ADMIN_ROLE |
+| `withdrawTreasury(uint256 amount)` | Výběr nevyužitých tokenů z treasury | DEFAULT_ADMIN_ROLE |
 | `getTreasuryBalance()` | Zobrazení zůstatku treasury | View |
 
 ## 5. Technická implementace
@@ -163,7 +161,7 @@ Contract má separátní treasury fond pro výplatu rewards. Treasury musí být
 uint256 public treasuryBalance;
 uint256 public totalRewardsAllocated;
 
-function depositTreasury(uint256 amount) external onlyOwner {
+function depositTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
     token.transferFrom(msg.sender, address(this), amount);
     treasuryBalance += amount;
     emit TreasuryDeposited(msg.sender, amount, block.timestamp);
@@ -172,7 +170,7 @@ function depositTreasury(uint256 amount) external onlyOwner {
 
 **Důležité aspekty:**
 - ✅ Oddělený účet pro rewards vs. stakované tokeny uživatelů
-- ✅ Owner musí udržovat treasury dostatečně naplněný
+- ✅ Admin (DEFAULT_ADMIN_ROLE) musí udržovat treasury dostatečně naplněný
 - ✅ View funkce `getTreasuryBalance()` pro monitoring stavu
 - ⚠️ Pokud treasury dojde, rewards se nepřičítají
 
@@ -181,15 +179,13 @@ function depositTreasury(uint256 amount) external onlyOwner {
 ```solidity
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ```
 
 - **ReentrancyGuard**: Ochrana proti reentrancy útokům
 - **Pausable**: Možnost pozastavit contract v nouzi
-- **Ownable2Step**: Bezpečný přenos vlastnictví (2 kroky)
-- **AccessControl**: Role-based přístup (Owner, Admin)
+- **AccessControl**: Role-based přístup (DEFAULT_ADMIN_ROLE, ADMIN_ROLE)
 - **SafeERC20**: Bezpečná práce s ERC20 tokeny
 
 **Role systém:**
@@ -199,15 +195,14 @@ bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00; // Owner role
 ```
 
-**Owner (DEFAULT_ADMIN_ROLE):**
-- Transfer ownership
-- Přidělování/odebírání Admin rolí
+**DEFAULT_ADMIN_ROLE (úroveň Owner):**
+- Přidělování/odebírání rolí
 - Emergency shutdown
 - Změna tier rates
+- Správa treasury (deposit/withdraw)
 
-**Admin (ADMIN_ROLE):**
+**ADMIN_ROLE (úroveň Operátor):**
 - Pause/Unpause contractu
-- View statistik
 - Monitoring operace
 
 ## 6. Events

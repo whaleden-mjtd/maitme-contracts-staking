@@ -205,15 +205,13 @@ mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
 
 | Function | Description | Permission |
 |----------|-------------|------------|
-| `emergencyShutdown()` | Initiate emergency mode | Owner |
-| `transferOwnership(address newOwner)` | 2-step ownership transfer | Owner |
-| `acceptOwnership()` | Confirm ownership acceptance | Pending Owner |
-| `grantRole(bytes32 role, address account)` | Grant Admin role | Owner |
-| `revokeRole(bytes32 role, address account)` | Revoke Admin role | Owner |
-| `pause() / unpause()` | Pause contract | Admin/Owner |
-| `updateTierRates(uint256[] rates)` | Update interest rates | Owner |
-| `depositTreasury(uint256 amount)` | Deposit tokens to treasury | Owner |
-| `withdrawTreasury(uint256 amount)` | Withdraw unused tokens from treasury | Owner |
+| `emergencyShutdown()` | Initiate emergency mode | DEFAULT_ADMIN_ROLE |
+| `grantRole(bytes32 role, address account)` | Grant role | DEFAULT_ADMIN_ROLE |
+| `revokeRole(bytes32 role, address account)` | Revoke role | DEFAULT_ADMIN_ROLE |
+| `pause() / unpause()` | Pause contract | ADMIN_ROLE |
+| `updateTierRates(uint256[] rates)` | Update interest rates | DEFAULT_ADMIN_ROLE |
+| `depositTreasury(uint256 amount)` | Deposit tokens to treasury | DEFAULT_ADMIN_ROLE |
+| `withdrawTreasury(uint256 amount)` | Withdraw unused tokens from treasury | DEFAULT_ADMIN_ROLE |
 | `getTreasuryBalance()` | Display treasury balance | View |
 
 ## 5. Technical Implementation
@@ -277,7 +275,7 @@ Contract has a separate treasury fund for reward payouts. Treasury must be pre-f
 uint256 public treasuryBalance;
 uint256 public totalRewardsAllocated;
 
-function depositTreasury(uint256 amount) external onlyOwner {
+function depositTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
     token.transferFrom(msg.sender, address(this), amount);
     treasuryBalance += amount;
     emit TreasuryDeposited(msg.sender, amount, block.timestamp);
@@ -286,7 +284,7 @@ function depositTreasury(uint256 amount) external onlyOwner {
 
 **Important aspects:**
 - ✅ Separate account for rewards vs. user staked tokens
-- ✅ Owner must keep treasury sufficiently funded
+- ✅ Admin (DEFAULT_ADMIN_ROLE) must keep treasury sufficiently funded
 - ✅ View function `getTreasuryBalance()` for status monitoring
 - ⚠️ If treasury runs out, rewards are not accrued
 
@@ -295,15 +293,13 @@ function depositTreasury(uint256 amount) external onlyOwner {
 ```solidity
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ```
 
 - **ReentrancyGuard**: Protection against reentrancy attacks
 - **Pausable**: Ability to pause contract in emergency
-- **Ownable2Step**: Secure ownership transfer (2 steps)
-- **AccessControl**: Role-based access (Owner, Admin)
+- **AccessControl**: Role-based access (DEFAULT_ADMIN_ROLE, ADMIN_ROLE)
 - **SafeERC20**: Safe ERC20 token handling
 
 **Role System:**
@@ -313,15 +309,14 @@ bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00; // Owner role
 ```
 
-**Owner (DEFAULT_ADMIN_ROLE):**
-- Transfer ownership
-- Grant/revoke Admin roles
+**DEFAULT_ADMIN_ROLE (Owner-level):**
+- Grant/revoke roles
 - Emergency shutdown
 - Change tier rates
+- Treasury management (deposit/withdraw)
 
-**Admin (ADMIN_ROLE):**
+**ADMIN_ROLE (Operator-level):**
 - Pause/Unpause contract
-- View statistics
 - Monitoring operations
 
 ## 6. Events
