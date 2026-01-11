@@ -22,6 +22,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     uint256 public constant YEAR_DURATION = 360 days;
     uint256 public constant RATE_PRECISION = 10000; // 100.00%
     uint8 public constant MAX_TIERS = 6;
+    uint256 public constant MAX_PENDING_WITHDRAWALS = 10;
 
     // ============ Structs ============
 
@@ -59,6 +60,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
     mapping(address => mapping(uint256 => bool)) private stakeIdExists;
     mapping(address => WithdrawRequest[]) public userWithdrawRequests;
+    mapping(address => uint256) public pendingWithdrawCount;
+    mapping(address => mapping(uint256 => bool)) private hasPendingWithdraw;
     mapping(address => bool) public isFounder;
 
     TierConfig[MAX_TIERS] public tiers;
@@ -97,6 +100,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     error ZeroAddress();
     error InsufficientStakeBalance();
     error InvalidTier();
+    error NoStakesToWithdraw();
+    error TooManyPendingWithdrawals();
 
     // ============ Constructor ============
 
@@ -115,6 +120,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         _grantRole(ADMIN_ROLE, initialOwner);
 
         for (uint256 i = 0; i < _founders.length; i++) {
+            if (_founders[i] == address(0)) revert ZeroAddress();
             isFounder[_founders[i]] = true;
         }
 
@@ -197,7 +203,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         if (amount > position.amount) revert InsufficientStakeBalance();
 
         // Check if there's already a pending withdraw for this stakeId
-        if (_hasPendingWithdraw(msg.sender, stakeId)) revert PositionHasPendingWithdraw();
+        if (hasPendingWithdraw[msg.sender][stakeId]) revert PositionHasPendingWithdraw();
+
+        // Check if user has too many pending withdrawals
+        if (pendingWithdrawCount[msg.sender] >= MAX_PENDING_WITHDRAWALS) revert TooManyPendingWithdrawals();
 
         uint256 availableAt = block.timestamp + NOTICE_PERIOD;
 
@@ -210,6 +219,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         });
 
         userWithdrawRequests[msg.sender].push(request);
+        hasPendingWithdraw[msg.sender][stakeId] = true;
+        pendingWithdrawCount[msg.sender]++;
 
         emit WithdrawRequested(msg.sender, stakeId, amount, block.timestamp, availableAt);
     }
@@ -226,6 +237,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         if (block.timestamp < request.availableAt) revert WithdrawNotReady();
 
         request.executed = true;
+        hasPendingWithdraw[msg.sender][stakeId] = false;
+        pendingWithdrawCount[msg.sender]--;
 
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
         StakePosition storage position = userStakes[msg.sender][positionIndex];
@@ -264,12 +277,15 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         uint256 amount = request.amount;
         request.executed = true; // Mark as executed to prevent reuse
+        hasPendingWithdraw[msg.sender][stakeId] = false;
+        pendingWithdrawCount[msg.sender]--;
 
         emit WithdrawCancelled(msg.sender, stakeId, amount, block.timestamp);
     }
 
     function emergencyWithdraw() external nonReentrant {
         if (!emergencyMode) revert EmergencyModeNotActive();
+        if (userStakes[msg.sender].length == 0) revert NoStakesToWithdraw();
 
         uint256 totalAmount = 0;
         uint256 totalRewards = 0;
@@ -414,6 +430,11 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     // ============ Internal Functions ============
 
     function _initializeTiers(uint256[MAX_TIERS] memory _tierRates) internal {
+        // Validate tier rates
+        for (uint8 i = 0; i < MAX_TIERS; i++) {
+            if (_tierRates[i] > RATE_PRECISION) revert InvalidTierRates();
+        }
+
         // Tier 1: 0-6 months
         tiers[0] = TierConfig({startTime: 0, endTime: 180 days, rate: _tierRates[0]});
 
@@ -481,16 +502,6 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             }
         }
         return MAX_TIERS; // Return max tier if beyond all
-    }
-
-    function _hasPendingWithdraw(address user, uint256 stakeId) internal view returns (bool) {
-        uint256 length = userWithdrawRequests[user].length;
-        for (uint256 i = 0; i < length; i++) {
-            if (userWithdrawRequests[user][i].stakeId == stakeId && !userWithdrawRequests[user][i].executed) {
-                return true;
-            }
-        }
-        return false;
     }
 
     function _findWithdrawRequest(address user, uint256 stakeId) internal view returns (uint256, bool) {
