@@ -365,9 +365,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emergencyMode = true;
         _pause();
 
-        uint256 totalRewards = 0; // Would need to calculate across all users
-
-        emit EmergencyShutdown(msg.sender, block.timestamp, totalStaked, totalRewards);
+        emit EmergencyShutdown(msg.sender, block.timestamp, totalStaked, 0);
     }
 
     function pause() external onlyRole(ADMIN_ROLE) {
@@ -382,64 +380,62 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     // ============ View Functions ============
 
+    /// @notice Get all stake positions for a user
     function getStakeInfo(address user) external view returns (StakePosition[] memory) {
         return userStakes[user];
     }
 
+    /// @notice Get a specific stake position by stakeId
     function getStakeByStakeId(address user, uint256 stakeId) external view returns (StakePosition memory) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
-        uint256 positionIndex = stakeIdToIndex[user][stakeId];
-        return userStakes[user][positionIndex];
+        return userStakes[user][stakeIdToIndex[user][stakeId]];
     }
 
+    /// @notice Calculate pending rewards for a specific position
     function calculateRewards(address user, uint256 stakeId) external view returns (uint256) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
-        uint256 positionIndex = stakeIdToIndex[user][stakeId];
-        return _calculatePositionRewards(user, positionIndex);
+        return _calculatePositionRewards(user, stakeIdToIndex[user][stakeId]);
     }
 
+    /// @notice Calculate total pending rewards across all positions
     function calculateTotalRewards(address user) external view returns (uint256) {
-        uint256 totalRewards = 0;
+        uint256 total = 0;
         uint256 length = userStakes[user].length;
-
         for (uint256 i = 0; i < length; i++) {
-            totalRewards += _calculatePositionRewards(user, i);
+            total += _calculatePositionRewards(user, i);
         }
-
-        return totalRewards;
+        return total;
     }
 
+    /// @notice Get all withdrawal requests (including executed - for history)
     function getPendingWithdrawals(address user) external view returns (WithdrawRequest[] memory) {
         return userWithdrawRequests[user];
     }
 
+    /// @notice Get current tier (1-6) for a specific position
     function getCurrentTier(address user, uint256 stakeId) external view returns (uint8) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
-        uint256 positionIndex = stakeIdToIndex[user][stakeId];
-        StakePosition memory position = userStakes[user][positionIndex];
-
-        uint256 stakingDuration = block.timestamp - position.startTime;
-        return _getTierForDuration(stakingDuration);
+        StakePosition memory position = userStakes[user][stakeIdToIndex[user][stakeId]];
+        return _getTierForDuration(block.timestamp - position.startTime);
     }
 
+    /// @notice Get number of active stake positions for a user
     function getUserStakeCount(address user) external view returns (uint256) {
         return userStakes[user].length;
     }
 
+    /// @notice Get current treasury balance available for rewards
     function getTreasuryBalance() external view returns (uint256) {
         return treasuryBalance;
     }
 
+    /// @notice Get tier configuration (startTime, endTime, rate)
     function getTierConfig(uint8 tier) external view returns (TierConfig memory) {
         if (tier >= MAX_TIERS) revert InvalidTier();
         return tiers[tier];
     }
 
-    /**
-     * @notice Get only active (non-executed) pending withdrawals for a user
-     * @param user Address of the user
-     * @return Active withdrawal requests
-     */
+    /// @notice Get only active (non-executed) pending withdrawals
     function getActivePendingWithdrawals(address user) external view returns (WithdrawRequest[] memory) {
         uint256 activeCount = pendingWithdrawCount[user];
         if (activeCount == 0) {
@@ -550,8 +546,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             stakeIdToIndex[user][lastPosition.stakeId] = index;
         }
 
-        // Mark the removed stakeId as non-existent
+        // Clean up mappings for removed stakeId
         stakeIdExists[user][removedStakeId] = false;
+        delete stakeIdToIndex[user][removedStakeId];
 
         userStakes[user].pop();
     }
