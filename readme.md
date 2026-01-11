@@ -123,19 +123,49 @@ forge fmt
 
 ```
 ├── src/
-│   └── ProgressiveStaking.sol    # Main staking contract
+│   └── ProgressiveStaking.sol       # Main staking contract
 ├── test/
-│   ├── ProgressiveStaking.t.sol  # Test suite
+│   ├── ProgressiveStaking.*.t.sol   # Test suites (114 tests)
 │   └── mocks/
-│       └── ERC20Mock.sol         # Mock token for testing
+│       └── ERC20Mock.sol            # Mock token for testing
 ├── script/
-│   └── Deploy.s.sol              # Deployment script
-├── lib/                          # Dependencies (git submodules)
+│   ├── DeployTestnet.s.sol          # Testnet deployment (with mock token)
+│   └── DeployMainnet.s.sol          # Mainnet deployment (existing token)
+├── sdk/                             # TypeScript SDK
+│   ├── src/                         # SDK source code
+│   ├── examples/                    # Usage examples
+│   └── README.md                    # SDK documentation
+├── lib/                             # Dependencies (git submodules)
 │   ├── forge-std/
 │   └── openzeppelin-contracts/
-├── foundry.toml                  # Foundry configuration
-├── remappings.txt                # Import remappings
-└── .env.example                  # Environment variables template
+├── foundry.toml                     # Foundry configuration
+├── remappings.txt                   # Import remappings
+└── .env.example                     # Environment variables template
+```
+
+### TypeScript SDK
+
+For frontend integration, see the [SDK documentation](./sdk/README.md).
+
+```bash
+cd sdk
+npm install
+npm run build
+```
+
+Quick example:
+```typescript
+import { ProgressiveStakingClient } from '@maitme/staking-sdk';
+
+const client = ProgressiveStakingClient.create(
+  { contractAddress: '0x...' },
+  'https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY',
+  sepolia
+);
+
+const stats = await client.getUserStats('0x...');
+console.log('Total Staked:', stats.totalStaked, 'MAIT');
+console.log('Rewards:', stats.totalRewards, 'MAIT');
 ```
 
 ---
