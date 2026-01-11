@@ -83,7 +83,8 @@ mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
 | `calculateRewards(address user, uint256 stakeId)` | Rewards pro konkrétní pozici |
 | `calculateTotalRewards(address user)` | Součet rewards ze všech pozic |
 | `getWithdrawableAmount(address user, uint256 stakeId)` | Kolik lze vybrat z pozice |
-| `getPendingWithdrawals(address user)` | Info o všech výpovědích |
+| `getPendingWithdrawals(address user)` | Všechny výpovědi (včetně provedených - pro historii) |
+| `getActivePendingWithdrawals(address user)` | Pouze aktivní (neprovedené) výpovědi |
 | `getCurrentTier(address user, uint256 stakeId)` | Aktuální tier konkrétní pozice |
 | `getUserStakeCount(address user)` | Počet aktivních pozic uživatele |
 

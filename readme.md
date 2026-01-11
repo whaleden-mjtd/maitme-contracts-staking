@@ -197,7 +197,8 @@ mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
 | `calculateRewards(address user, uint256 stakeId)` | Rewards for specific position |
 | `calculateTotalRewards(address user)` | Sum of rewards from all positions |
 | `getWithdrawableAmount(address user, uint256 stakeId)` | How much can be withdrawn from position |
-| `getPendingWithdrawals(address user)` | Info about all withdrawal requests |
+| `getPendingWithdrawals(address user)` | All withdrawal requests (including executed - for history) |
+| `getActivePendingWithdrawals(address user)` | Only active (non-executed) withdrawal requests |
 | `getCurrentTier(address user, uint256 stakeId)` | Current tier of specific position |
 | `getUserStakeCount(address user)` | Number of active user positions |
 

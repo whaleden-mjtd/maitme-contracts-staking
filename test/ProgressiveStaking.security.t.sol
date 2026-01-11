@@ -577,4 +577,118 @@ contract ProgressiveStakingSecurityTest is ProgressiveStakingBaseTest {
         vm.expectRevert(ProgressiveStaking.NoRewardsToClaim.selector);
         staking.claimRewards(1);
     }
+
+    // ============ Audit Round 3 Tests ============
+
+    /**
+     * @notice Test that emergencyWithdraw cleans up pending withdraw mappings
+     * @dev hasPendingWithdraw and pendingWithdrawCount should be reset
+     */
+    function test_EmergencyWithdrawCleansPendingWithdrawMappings() public {
+        // User stakes and creates pending withdrawals
+        vm.startPrank(user1);
+        staking.stake(1000 ether);
+        staking.stake(2000 ether);
+        staking.requestWithdraw(1, 500 ether);
+        staking.requestWithdraw(2, 1000 ether);
+        vm.stopPrank();
+
+        // Verify pending count
+        assertEq(staking.pendingWithdrawCount(user1), 2);
+
+        // Emergency shutdown and withdraw
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        vm.prank(user1);
+        staking.emergencyWithdraw();
+
+        // Pending count should be reset to 0
+        assertEq(staking.pendingWithdrawCount(user1), 0);
+    }
+
+    /**
+     * @notice Test getActivePendingWithdrawals returns only non-executed requests
+     * @dev Should filter out executed requests
+     */
+    function test_GetActivePendingWithdrawals() public {
+        // Create multiple stakes
+        vm.startPrank(user1);
+        staking.stake(1000 ether);
+        staking.stake(2000 ether);
+        staking.stake(3000 ether);
+
+        // Create 3 withdraw requests
+        staking.requestWithdraw(1, 500 ether);
+        staking.requestWithdraw(2, 1000 ether);
+        staking.requestWithdraw(3, 1500 ether);
+        vm.stopPrank();
+
+        // Should have 3 active
+        ProgressiveStaking.WithdrawRequest[] memory active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 3);
+
+        // Execute one
+        vm.warp(block.timestamp + 90 days);
+        vm.prank(user1);
+        staking.executeWithdraw(2);
+
+        // Should have 2 active now
+        active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 2);
+
+        // Cancel one
+        vm.prank(user1);
+        staking.cancelWithdrawRequest(1);
+
+        // Should have 1 active now
+        active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 1);
+        assertEq(active[0].stakeId, 3);
+    }
+
+    /**
+     * @notice Test getActivePendingWithdrawals returns empty array when no pending
+     * @dev Should return empty array, not revert
+     */
+    function test_GetActivePendingWithdrawalsEmpty() public {
+        // User with no stakes
+        ProgressiveStaking.WithdrawRequest[] memory active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 0);
+
+        // User with stakes but no pending withdrawals
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 0);
+    }
+
+    /**
+     * @notice Test getPendingWithdrawals vs getActivePendingWithdrawals
+     * @dev getPendingWithdrawals returns all, getActivePendingWithdrawals returns only active
+     */
+    function test_GetPendingWithdrawalsVsActive() public {
+        vm.startPrank(user1);
+        staking.stake(1000 ether);
+        staking.requestWithdraw(1, 500 ether);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 90 days);
+        vm.prank(user1);
+        staking.executeWithdraw(1);
+
+        // Create another request
+        vm.prank(user1);
+        staking.requestWithdraw(1, 200 ether);
+
+        // getPendingWithdrawals returns all (including executed)
+        ProgressiveStaking.WithdrawRequest[] memory all = staking.getPendingWithdrawals(user1);
+        assertEq(all.length, 2);
+
+        // getActivePendingWithdrawals returns only active
+        ProgressiveStaking.WithdrawRequest[] memory active = staking.getActivePendingWithdrawals(user1);
+        assertEq(active.length, 1);
+        assertEq(active[0].amount, 200 ether);
+    }
 }

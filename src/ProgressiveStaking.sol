@@ -62,6 +62,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     mapping(address => WithdrawRequest[]) public userWithdrawRequests;
     mapping(address => uint256) public pendingWithdrawCount;
     mapping(address => mapping(uint256 => bool)) private hasPendingWithdraw;
+    mapping(address => mapping(uint256 => uint256)) private stakeIdToWithdrawIndex;
     mapping(address => bool) public isFounder;
 
     TierConfig[MAX_TIERS] public tiers;
@@ -219,6 +220,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         });
 
         userWithdrawRequests[msg.sender].push(request);
+        stakeIdToWithdrawIndex[msg.sender][stakeId] = userWithdrawRequests[msg.sender].length - 1;
         hasPendingWithdraw[msg.sender][stakeId] = true;
         pendingWithdrawCount[msg.sender]++;
 
@@ -227,10 +229,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     function executeWithdraw(uint256 stakeId) external nonReentrant {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
+        if (!hasPendingWithdraw[msg.sender][stakeId]) revert NoWithdrawRequest();
 
-        (uint256 requestIndex, bool found) = _findWithdrawRequest(msg.sender, stakeId);
-        if (!found) revert NoWithdrawRequest();
-
+        uint256 requestIndex = stakeIdToWithdrawIndex[msg.sender][stakeId];
         WithdrawRequest storage request = userWithdrawRequests[msg.sender][requestIndex];
 
         if (request.executed) revert WithdrawAlreadyExecuted();
@@ -268,10 +269,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     function cancelWithdrawRequest(uint256 stakeId) external nonReentrant {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
+        if (!hasPendingWithdraw[msg.sender][stakeId]) revert NoWithdrawRequest();
 
-        (uint256 requestIndex, bool found) = _findWithdrawRequest(msg.sender, stakeId);
-        if (!found) revert NoWithdrawRequest();
-
+        uint256 requestIndex = stakeIdToWithdrawIndex[msg.sender][stakeId];
         WithdrawRequest storage request = userWithdrawRequests[msg.sender][requestIndex];
         if (request.executed) revert WithdrawAlreadyExecuted();
 
@@ -297,10 +297,18 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             totalAmount += userStakes[msg.sender][i].amount;
             totalRewards += _calculatePositionRewards(msg.sender, i);
 
-            // Clean up mappings
+            // Clean up stake mappings
             stakeIdExists[msg.sender][stakeId] = false;
             delete stakeIdToIndex[msg.sender][stakeId];
+
+            // Clean up pending withdraw mappings
+            if (hasPendingWithdraw[msg.sender][stakeId]) {
+                hasPendingWithdraw[msg.sender][stakeId] = false;
+            }
         }
+
+        // Reset pending withdraw count
+        pendingWithdrawCount[msg.sender] = 0;
 
         // Clear all positions
         delete userStakes[msg.sender];
@@ -427,6 +435,31 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         return tiers[tier];
     }
 
+    /**
+     * @notice Get only active (non-executed) pending withdrawals for a user
+     * @param user Address of the user
+     * @return Active withdrawal requests
+     */
+    function getActivePendingWithdrawals(address user) external view returns (WithdrawRequest[] memory) {
+        uint256 activeCount = pendingWithdrawCount[user];
+        if (activeCount == 0) {
+            return new WithdrawRequest[](0);
+        }
+
+        WithdrawRequest[] memory activeRequests = new WithdrawRequest[](activeCount);
+        uint256 length = userWithdrawRequests[user].length;
+        uint256 activeIndex = 0;
+
+        for (uint256 i = 0; i < length && activeIndex < activeCount; i++) {
+            if (!userWithdrawRequests[user][i].executed) {
+                activeRequests[activeIndex] = userWithdrawRequests[user][i];
+                activeIndex++;
+            }
+        }
+
+        return activeRequests;
+    }
+
     // ============ Internal Functions ============
 
     function _initializeTiers(uint256[MAX_TIERS] memory _tierRates) internal {
@@ -502,16 +535,6 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             }
         }
         return MAX_TIERS; // Return max tier if beyond all
-    }
-
-    function _findWithdrawRequest(address user, uint256 stakeId) internal view returns (uint256, bool) {
-        uint256 length = userWithdrawRequests[user].length;
-        for (uint256 i = 0; i < length; i++) {
-            if (userWithdrawRequests[user][i].stakeId == stakeId && !userWithdrawRequests[user][i].executed) {
-                return (i, true);
-            }
-        }
-        return (0, false);
     }
 
     function _removePosition(address user, uint256 index) internal {
