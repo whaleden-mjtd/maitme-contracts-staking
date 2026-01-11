@@ -79,6 +79,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     event TierRatesUpdated(address indexed admin, uint256[MAX_TIERS] newRates, uint256 timestamp);
     event TreasuryDeposited(address indexed from, uint256 amount, uint256 timestamp);
     event TreasuryWithdrawn(address indexed to, uint256 amount, uint256 timestamp);
+    event EmergencyWithdrawn(address indexed user, uint256 principal, uint256 rewards, uint256 timestamp);
 
     // ============ Errors ============
 
@@ -93,6 +94,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     error EmergencyModeNotActive();
     error InvalidTierRates();
     error PositionHasPendingWithdraw();
+    error ZeroAddress();
+    error InsufficientStakeBalance();
+    error InvalidTier();
 
     // ============ Constructor ============
 
@@ -102,6 +106,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         address[] memory _founders,
         uint256[MAX_TIERS] memory _tierRates
     ) {
+        if (initialOwner == address(0)) revert ZeroAddress();
+        if (_stakingToken == address(0)) revert ZeroAddress();
+
         stakingToken = IERC20(_stakingToken);
 
         _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
@@ -187,7 +194,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
         StakePosition storage position = userStakes[msg.sender][positionIndex];
 
-        if (amount > position.amount) revert ZeroAmount();
+        if (amount > position.amount) revert InsufficientStakeBalance();
 
         // Check if there's already a pending withdraw for this stakeId
         if (_hasPendingWithdraw(msg.sender, stakeId)) revert PositionHasPendingWithdraw();
@@ -268,9 +275,15 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 totalRewards = 0;
         uint256 length = userStakes[msg.sender].length;
 
+        // Calculate totals and clean up mappings
         for (uint256 i = 0; i < length; i++) {
+            uint256 stakeId = userStakes[msg.sender][i].stakeId;
             totalAmount += userStakes[msg.sender][i].amount;
             totalRewards += _calculatePositionRewards(msg.sender, i);
+
+            // Clean up mappings
+            stakeIdExists[msg.sender][stakeId] = false;
+            delete stakeIdToIndex[msg.sender][stakeId];
         }
 
         // Clear all positions
@@ -284,10 +297,14 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         }
 
         // Transfer rewards if treasury has enough
+        uint256 rewardsPaid = 0;
         if (totalRewards > 0 && treasuryBalance >= totalRewards) {
             treasuryBalance -= totalRewards;
+            rewardsPaid = totalRewards;
             stakingToken.safeTransfer(msg.sender, totalRewards);
         }
+
+        emit EmergencyWithdrawn(msg.sender, totalAmount, rewardsPaid, block.timestamp);
     }
 
     // ============ External Functions - Admin ============
@@ -390,6 +407,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     }
 
     function getTierConfig(uint8 tier) external view returns (TierConfig memory) {
+        if (tier >= MAX_TIERS) revert InvalidTier();
         return tiers[tier];
     }
 

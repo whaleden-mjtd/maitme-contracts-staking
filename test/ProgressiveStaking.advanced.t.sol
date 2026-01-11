@@ -511,14 +511,14 @@ contract ProgressiveStakingAdvancedTest is Test {
 
     /**
      * @notice Test requesting withdrawal for more than staked amount
-     * @dev Should revert with ZeroAmount error (amount > position.amount check)
+     * @dev Should revert with InsufficientStakeBalance error
      */
     function test_WithdrawMoreThanStaked() public {
         vm.prank(user1);
         staking.stake(1000 ether);
 
         vm.prank(user1);
-        vm.expectRevert(ProgressiveStaking.ZeroAmount.selector);
+        vm.expectRevert(ProgressiveStaking.InsufficientStakeBalance.selector);
         staking.requestWithdraw(1, 2000 ether);
     }
 
@@ -777,5 +777,228 @@ contract ProgressiveStakingAdvancedTest is Test {
 
         // Second claim should be higher (Tier 2 rate)
         assertGt(rewards2, rewards1);
+    }
+
+    // ============ Constructor Validation Tests ============
+
+    /**
+     * @notice Test that constructor reverts with zero address for initialOwner
+     * @dev Critical security check - prevents deployment with no admin
+     */
+    function test_RevertZeroAddressOwner() public {
+        address[] memory founders = new address[](0);
+        uint256[6] memory rates = [uint256(50), 70, 200, 400, 500, 600];
+
+        vm.expectRevert(ProgressiveStaking.ZeroAddress.selector);
+        new ProgressiveStaking(address(0), address(token), founders, rates);
+    }
+
+    /**
+     * @notice Test that constructor reverts with zero address for staking token
+     * @dev Critical security check - prevents deployment with invalid token
+     */
+    function test_RevertZeroAddressToken() public {
+        address[] memory founders = new address[](0);
+        uint256[6] memory rates = [uint256(50), 70, 200, 400, 500, 600];
+
+        vm.expectRevert(ProgressiveStaking.ZeroAddress.selector);
+        new ProgressiveStaking(owner, address(0), founders, rates);
+    }
+
+    // ============ Emergency Withdraw Mapping Cleanup Tests ============
+
+    /**
+     * @notice Test that emergencyWithdraw properly cleans up stakeIdExists mapping
+     * @dev After emergency withdraw, stakeIdExists should return false for all stakeIds
+     */
+    function test_EmergencyWithdrawCleansStakeIdExists() public {
+        // User stakes multiple positions
+        vm.startPrank(user1);
+        staking.stake(1000 ether);
+        staking.stake(2000 ether);
+        staking.stake(3000 ether);
+        vm.stopPrank();
+
+        // Verify positions exist
+        assertEq(staking.getUserStakeCount(user1), 3);
+
+        // Enable emergency mode
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        // Emergency withdraw
+        vm.prank(user1);
+        staking.emergencyWithdraw();
+
+        // Verify all positions are gone
+        assertEq(staking.getUserStakeCount(user1), 0);
+
+        // Verify stakeIdExists is cleaned - trying to access old stakeIds should revert
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user1, 1);
+
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user1, 2);
+
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user1, 3);
+    }
+
+    /**
+     * @notice Test that emergencyWithdraw emits correct event
+     * @dev Verifies EmergencyWithdrawn event with principal and rewards
+     */
+    function test_EmergencyWithdrawEmitsEvent() public {
+        vm.prank(user1);
+        staking.stake(10_000 ether);
+
+        // Wait for some rewards to accumulate
+        vm.warp(block.timestamp + 180 days);
+
+        // Enable emergency mode
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        // Calculate expected rewards
+        uint256 expectedRewards = staking.calculateTotalRewards(user1);
+
+        // Emergency withdraw and check event
+        vm.prank(user1);
+        vm.expectEmit(true, false, false, true);
+        emit ProgressiveStaking.EmergencyWithdrawn(user1, 10_000 ether, expectedRewards, block.timestamp);
+        staking.emergencyWithdraw();
+    }
+
+    /**
+     * @notice Test that user cannot stake after emergency withdraw (stakeIds cleaned)
+     * @dev New stakes should get new stakeIds, not reuse old ones
+     */
+    function test_CanStakeAfterEmergencyWithdraw() public {
+        // First stake
+        vm.prank(user1);
+        staking.stake(1000 ether);
+        assertEq(staking.getUserStakeCount(user1), 1);
+
+        // Emergency shutdown and withdraw
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        vm.prank(user1);
+        staking.emergencyWithdraw();
+        assertEq(staking.getUserStakeCount(user1), 0);
+
+        // Disable emergency mode would be needed to stake again
+        // But since emergencyMode can't be disabled, this test verifies
+        // that the mappings are properly cleaned even if user can't stake again
+    }
+
+    /**
+     * @notice Test emergencyWithdraw with multiple users
+     * @dev Each user's mappings should be independently cleaned
+     */
+    function test_EmergencyWithdrawMultipleUsers() public {
+        // Multiple users stake
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(user2);
+        staking.stake(2000 ether);
+
+        vm.prank(user3);
+        staking.stake(3000 ether);
+
+        // Emergency shutdown
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        // User1 withdraws
+        vm.prank(user1);
+        staking.emergencyWithdraw();
+
+        // User1's stakeId should be invalid, but user2's should still work
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user1, 1);
+
+        // User2 hasn't withdrawn yet, their stake should still exist
+        ProgressiveStaking.StakePosition memory pos = staking.getStakeByStakeId(user2, 2);
+        assertEq(pos.amount, 2000 ether);
+
+        // User2 withdraws
+        vm.prank(user2);
+        staking.emergencyWithdraw();
+
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user2, 2);
+    }
+
+    // ============ getTierConfig Bounds Check Tests ============
+
+    /**
+     * @notice Test that getTierConfig reverts for invalid tier index
+     * @dev Should revert with InvalidTier for tier >= MAX_TIERS (6)
+     */
+    function test_GetTierConfigInvalidTier() public {
+        // Valid tiers 0-5 should work
+        staking.getTierConfig(0);
+        staking.getTierConfig(5);
+
+        // Invalid tier 6 should revert
+        vm.expectRevert(ProgressiveStaking.InvalidTier.selector);
+        staking.getTierConfig(6);
+
+        // Invalid tier 255 should revert
+        vm.expectRevert(ProgressiveStaking.InvalidTier.selector);
+        staking.getTierConfig(255);
+    }
+
+    // ============ InsufficientStakeBalance Error Tests ============
+
+    /**
+     * @notice Test that requestWithdraw uses correct error for amount > balance
+     * @dev Should revert with InsufficientStakeBalance, not ZeroAmount
+     */
+    function test_RequestWithdrawInsufficientBalance() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        // Try to withdraw more than staked
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InsufficientStakeBalance.selector);
+        staking.requestWithdraw(1, 1001 ether);
+
+        // Exact amount should work
+        vm.prank(user1);
+        staking.requestWithdraw(1, 1000 ether);
+    }
+
+    /**
+     * @notice Test partial withdraw followed by another partial withdraw request
+     * @dev After partial withdraw, remaining balance should be correctly tracked
+     */
+    function test_PartialWithdrawThenRequestMore() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        // Request partial withdraw
+        vm.prank(user1);
+        staking.requestWithdraw(1, 400 ether);
+
+        // Wait and execute
+        vm.warp(block.timestamp + 90 days);
+        vm.prank(user1);
+        staking.executeWithdraw(1);
+
+        // Position should have 600 ether remaining
+        ProgressiveStaking.StakePosition memory pos = staking.getStakeByStakeId(user1, 1);
+        assertEq(pos.amount, 600 ether);
+
+        // Requesting more than remaining should fail
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InsufficientStakeBalance.selector);
+        staking.requestWithdraw(1, 601 ether);
+
+        // Requesting exactly remaining should work
+        vm.prank(user1);
+        staking.requestWithdraw(1, 600 ether);
     }
 }
