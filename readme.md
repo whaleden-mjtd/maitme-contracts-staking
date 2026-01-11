@@ -50,11 +50,11 @@ forge test --gas-report
 # Start local Anvil node
 anvil
 
-# In another terminal, deploy to local node
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+# In another terminal, deploy to local node (uses testnet script with mock token)
+forge script script/DeployTestnet.s.sol --rpc-url http://localhost:8545 --broadcast
 ```
 
-### Deploy to Testnet
+### Deployment
 
 1. Copy `.env.example` to `.env` and fill in your values:
 
@@ -62,24 +62,50 @@ forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
 cp .env.example .env
 ```
 
-2. Edit `.env` with your configuration:
+2. Edit `.env` with your configuration.
 
-```
-PRIVATE_KEY=your_private_key_without_0x
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
-STAKING_TOKEN_ADDRESS=0x...
-ETHERSCAN_API_KEY=your_etherscan_key
-```
+#### Deploy to Testnet (Sepolia)
 
-3. Deploy:
+Deploys a **mock ERC20 token** + staking contract. Useful for testing.
 
 ```bash
-# Deploy to Sepolia (testnet)
-forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
+# Set environment variables
+export PRIVATE_KEY=your_private_key_without_0x
+export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+export ETHERSCAN_API_KEY=your_etherscan_key
+export FOUNDER_ADDRESSES=0x123...,0x456...  # optional
 
-# Deploy to Mainnet
-forge script script/Deploy.s.sol --rpc-url $MAINNET_RPC_URL --broadcast --verify
+# Deploy
+source .env
+forge script script/DeployTestnet.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
 ```
+
+This will:
+- Deploy mock MAIT token (100M supply)
+- Deploy ProgressiveStaking contract
+- Deposit 10M tokens to treasury
+
+#### Deploy to Mainnet (Ethereum)
+
+Uses **existing MAIT token**. For production deployment.
+
+```bash
+# Set environment variables
+export PRIVATE_KEY=your_private_key_without_0x
+export MAINNET_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+export ETHERSCAN_API_KEY=your_etherscan_key
+export STAKING_TOKEN_ADDRESS=0x...  # existing MAIT token address
+export TREASURY_AMOUNT=10000000000000000000000000  # 10M tokens in wei (optional)
+export FOUNDER_ADDRESSES=0x123...,0x456...  # optional
+
+# Deploy
+source .env
+forge script script/DeployMainnet.s.sol --rpc-url $MAINNET_RPC_URL --broadcast --verify
+```
+
+This will:
+- Deploy ProgressiveStaking contract with existing token
+- Optionally deposit treasury (if TREASURY_AMOUNT is set)
 
 ### Code Coverage
 
