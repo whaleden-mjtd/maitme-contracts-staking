@@ -125,7 +125,7 @@ forge fmt
 ├── src/
 │   └── ProgressiveStaking.sol       # Main staking contract
 ├── test/
-│   ├── ProgressiveStaking.*.t.sol   # Test suites (114 tests)
+│   ├── ProgressiveStaking.*.t.sol   # Test suites (148 tests)
 │   └── mocks/
 │       └── ERC20Mock.sol            # Mock token for testing
 ├── script/
@@ -138,10 +138,15 @@ forge fmt
 ├── lib/                             # Dependencies (git submodules)
 │   ├── forge-std/
 │   └── openzeppelin-contracts/
+├── ARCHITECTURE.md                  # Architecture & security documentation
 ├── foundry.toml                     # Foundry configuration
 ├── remappings.txt                   # Import remappings
 └── .env.example                     # Environment variables template
 ```
+
+### Architecture Documentation
+
+For detailed architecture diagrams, state machines, and security documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ### TypeScript SDK
 

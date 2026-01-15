@@ -368,4 +368,162 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         staking.requestWithdraw(11, 50 ether);
         assertEq(staking.pendingWithdrawCount(user1), 1);
     }
+
+    // ============ Branch Coverage Tests ============
+
+    /// @notice Test stake reverts in emergency mode (paused first, then emergency check)
+    function test_StakeRevertsInEmergencyMode() public {
+        // Set emergency mode without pausing to test EmergencyModeActive error
+        // Since emergencyShutdown also pauses, we need to test the order of checks
+        // The contract checks: whenNotPaused first, then emergencyMode
+        // So when emergencyShutdown is called, it pauses first - EnforcedPause is thrown
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        vm.prank(user1);
+        vm.expectRevert(); // Will revert with EnforcedPause (pause check comes first)
+        staking.stake(1000 ether);
+    }
+
+    /// @notice Test claimRewards reverts with invalid stakeId
+    function test_ClaimRewardsRevertsInvalidStakeId() public {
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.claimRewards(999);
+    }
+
+    /// @notice Test claimAllRewards reverts when no rewards
+    function test_ClaimAllRewardsRevertsNoRewards() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        // Immediately try to claim (no time passed = no rewards)
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.NoRewardsToClaim.selector);
+        staking.claimAllRewards();
+    }
+
+    /// @notice Test claimAllRewards reverts when treasury insufficient
+    function test_ClaimAllRewardsRevertsInsufficientTreasury() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.warp(block.timestamp + 180 days);
+
+        // Withdraw all treasury
+        uint256 treasuryBal = staking.getTreasuryBalance();
+        vm.prank(owner);
+        staking.withdrawTreasury(treasuryBal);
+
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InsufficientTreasury.selector);
+        staking.claimAllRewards();
+    }
+
+    /// @notice Test requestWithdraw reverts with invalid stakeId
+    function test_RequestWithdrawRevertsInvalidStakeId() public {
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.requestWithdraw(999, 100 ether);
+    }
+
+    /// @notice Test requestWithdraw reverts with zero amount
+    function test_RequestWithdrawRevertsZeroAmount() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.ZeroAmount.selector);
+        staking.requestWithdraw(1, 0);
+    }
+
+    /// @notice Test executeWithdraw reverts with invalid stakeId
+    function test_ExecuteWithdrawRevertsInvalidStakeId() public {
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.executeWithdraw(999);
+    }
+
+    /// @notice Test cancelWithdrawRequest reverts with invalid stakeId
+    function test_CancelWithdrawRevertsInvalidStakeId() public {
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.cancelWithdrawRequest(999);
+    }
+
+    /// @notice Test emergencyWithdraw reverts when not in emergency mode
+    function test_EmergencyWithdrawRevertsNotEmergencyMode() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.EmergencyModeNotActive.selector);
+        staking.emergencyWithdraw();
+    }
+
+    /// @notice Test emergencyWithdraw reverts when user has no stakes
+    function test_EmergencyWithdrawRevertsNoStakes() public {
+        vm.prank(owner);
+        staking.emergencyShutdown();
+
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.NoStakesToWithdraw.selector);
+        staking.emergencyWithdraw();
+    }
+
+    /// @notice Test depositTreasury reverts with zero amount (branch coverage)
+    function test_DepositTreasuryRevertsZeroAmount_Branch() public {
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.ZeroAmount.selector);
+        staking.depositTreasury(0);
+    }
+
+    /// @notice Test withdrawTreasury reverts with zero amount (branch coverage)
+    function test_WithdrawTreasuryRevertsZeroAmount_Branch() public {
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.ZeroAmount.selector);
+        staking.withdrawTreasury(0);
+    }
+
+    /// @notice Test withdrawTreasury reverts when amount exceeds balance (branch coverage)
+    function test_WithdrawTreasuryRevertsInsufficientBalance_Branch() public {
+        uint256 treasuryBal = staking.getTreasuryBalance();
+
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.InsufficientTreasury.selector);
+        staking.withdrawTreasury(treasuryBal + 1);
+    }
+
+    /// @notice Test updateTierRates reverts with invalid rate
+    function test_UpdateTierRatesRevertsInvalidRate() public {
+        uint256[6] memory invalidRates = [uint256(50), 70, 200, 400, 500, 10001]; // Last rate > 10000
+
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.InvalidTierRates.selector);
+        staking.updateTierRates(invalidRates);
+    }
+
+    /// @notice Test getTierConfig reverts with invalid tier
+    function test_GetTierConfigRevertsInvalidTier() public {
+        vm.expectRevert(ProgressiveStaking.InvalidTier.selector);
+        staking.getTierConfig(6); // Max is 5 (0-indexed)
+    }
+
+    /// @notice Test getStakeByStakeId reverts with invalid stakeId
+    function test_GetStakeByStakeIdRevertsInvalidStakeId() public {
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getStakeByStakeId(user1, 999);
+    }
+
+    /// @notice Test calculateRewards reverts with invalid stakeId
+    function test_CalculateRewardsRevertsInvalidStakeId() public {
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.calculateRewards(user1, 999);
+    }
+
+    /// @notice Test getCurrentTier reverts with invalid stakeId
+    function test_GetCurrentTierRevertsInvalidStakeId() public {
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.getCurrentTier(user1, 999);
+    }
 }

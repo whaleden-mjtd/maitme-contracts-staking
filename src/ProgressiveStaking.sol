@@ -9,8 +9,24 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title ProgressiveStaking
+ * @author MAIT.me
  * @notice Staking contract with progressive interest rates based on staking duration
- * @dev Implements tier-based APY system with automatic compounding
+ * @dev Implements tier-based APY system with automatic compounding.
+ *
+ * Key features:
+ * - 6 progressive tiers with increasing APY (0.5% to 6%)
+ * - 90-day notice period for withdrawals
+ * - Automatic reward compounding in calculations
+ * - Founder addresses excluded from rewards
+ * - Emergency mode for critical situations
+ *
+ * Security features:
+ * - ReentrancyGuard on all state-changing functions
+ * - Pausable for emergency stops
+ * - AccessControl with ADMIN_ROLE and DEFAULT_ADMIN_ROLE
+ * - SafeERC20 for token transfers
+ *
+ * @custom:security-contact security@mait.me
  */
 contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     using SafeERC20 for IERC20;
@@ -110,6 +126,12 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     // ============ Constructor ============
 
+    /// @notice Initializes the staking contract
+    /// @dev Sets up roles, founders, and tier configuration
+    /// @param initialOwner Address that receives DEFAULT_ADMIN_ROLE and ADMIN_ROLE
+    /// @param _stakingToken ERC20 token address used for staking
+    /// @param _founders Array of founder addresses (excluded from rewards)
+    /// @param _tierRates Array of 6 tier rates in basis points (e.g., 50 = 0.5%)
     constructor(
         address initialOwner,
         address _stakingToken,
@@ -134,6 +156,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     // ============ External Functions - User ============
 
+    /// @notice Stake tokens to earn progressive rewards
+    /// @dev Creates a new stake position with unique stakeId. Transfers tokens from caller.
+    /// @param amount Amount of tokens to stake (must be >= MIN_STAKE_AMOUNT)
+    /// @custom:security nonReentrant, whenNotPaused
     function stake(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         if (amount < MIN_STAKE_AMOUNT) revert StakeAmountTooLow();
@@ -160,6 +186,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit Staked(msg.sender, stakeId, amount, block.timestamp);
     }
 
+    /// @notice Claim accumulated rewards for a specific stake position
+    /// @dev Updates lastClaimTime and transfers rewards from treasury
+    /// @param stakeId The unique identifier of the stake position
+    /// @custom:security nonReentrant, whenNotPaused
     function claimRewards(uint256 stakeId) external nonReentrant whenNotPaused {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
 
@@ -177,6 +207,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit RewardsClaimed(msg.sender, stakeId, rewards, block.timestamp);
     }
 
+    /// @notice Claim accumulated rewards for all stake positions at once
+    /// @dev Iterates through all positions, updates lastClaimTime, and transfers total rewards
+    /// @custom:security nonReentrant, whenNotPaused
     function claimAllRewards() external nonReentrant whenNotPaused {
         uint256 totalRewards = 0;
         uint256 length = userStakes[msg.sender].length;
@@ -199,6 +232,11 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit AllRewardsClaimed(msg.sender, totalRewards, block.timestamp);
     }
 
+    /// @notice Request withdrawal of staked tokens (starts 90-day notice period)
+    /// @dev Creates a WithdrawRequest. Only one pending request per stakeId allowed.
+    /// @param stakeId The unique identifier of the stake position
+    /// @param amount Amount to withdraw (can be partial)
+    /// @custom:security nonReentrant, whenNotPaused
     function requestWithdraw(uint256 stakeId, uint256 amount) external nonReentrant whenNotPaused {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
         if (amount == 0) revert ZeroAmount();
@@ -232,6 +270,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit WithdrawRequested(msg.sender, stakeId, amount, block.timestamp, availableAt);
     }
 
+    /// @notice Execute a pending withdrawal after notice period has passed
+    /// @dev Automatically claims pending rewards. Removes position if fully withdrawn.
+    /// @param stakeId The unique identifier of the stake position
+    /// @custom:security nonReentrant (not whenNotPaused - allows withdrawal even when paused)
     function executeWithdraw(uint256 stakeId) external nonReentrant {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
         if (!hasPendingWithdraw[msg.sender][stakeId]) revert NoWithdrawRequest();
@@ -272,6 +314,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit WithdrawExecuted(msg.sender, stakeId, withdrawAmount, block.timestamp);
     }
 
+    /// @notice Cancel a pending withdrawal request
+    /// @dev Marks request as executed to prevent reuse. Stake remains active.
+    /// @param stakeId The unique identifier of the stake position
+    /// @custom:security nonReentrant
     function cancelWithdrawRequest(uint256 stakeId) external nonReentrant {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
         if (!hasPendingWithdraw[msg.sender][stakeId]) revert NoWithdrawRequest();
@@ -288,6 +334,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit WithdrawCancelled(msg.sender, stakeId, amount, block.timestamp);
     }
 
+    /// @notice Withdraw all stakes immediately during emergency mode
+    /// @dev Bypasses notice period. Only available when emergencyMode is true.
+    ///      Pays rewards if treasury has sufficient balance.
+    /// @custom:security nonReentrant, requires emergencyMode
     function emergencyWithdraw() external nonReentrant {
         if (!emergencyMode) revert EmergencyModeNotActive();
         if (userStakes[msg.sender].length == 0) revert NoStakesToWithdraw();
@@ -338,6 +388,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
     // ============ External Functions - Admin ============
 
+    /// @notice Deposit tokens into the treasury for reward payments
+    /// @dev Only DEFAULT_ADMIN_ROLE can deposit. Transfers tokens from caller.
+    /// @param amount Amount of tokens to deposit
+    /// @custom:security onlyRole(DEFAULT_ADMIN_ROLE)
     function depositTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert ZeroAmount();
 
@@ -347,6 +401,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit TreasuryDeposited(msg.sender, amount, block.timestamp);
     }
 
+    /// @notice Withdraw tokens from the treasury
+    /// @dev Only DEFAULT_ADMIN_ROLE can withdraw. Cannot exceed treasuryBalance.
+    /// @param amount Amount of tokens to withdraw
+    /// @custom:security onlyRole(DEFAULT_ADMIN_ROLE)
     function withdrawTreasury(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert ZeroAmount();
         if (amount > treasuryBalance) revert InsufficientTreasury();
@@ -357,6 +415,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit TreasuryWithdrawn(msg.sender, amount, block.timestamp);
     }
 
+    /// @notice Update APY rates for all tiers
+    /// @dev Affects all existing stakes immediately. Rates in basis points (max 10000).
+    /// @param newRates Array of 6 new rates in basis points
+    /// @custom:security onlyRole(DEFAULT_ADMIN_ROLE)
     function updateTierRates(uint256[MAX_TIERS] calldata newRates) external onlyRole(DEFAULT_ADMIN_ROLE) {
         for (uint8 i = 0; i < MAX_TIERS; i++) {
             if (newRates[i] > RATE_PRECISION) revert InvalidTierRates();
@@ -366,6 +428,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit TierRatesUpdated(msg.sender, newRates, block.timestamp);
     }
 
+    /// @notice Activate emergency mode and pause contract
+    /// @dev IRREVERSIBLE. Enables emergencyWithdraw for all users.
+    /// @custom:security onlyRole(DEFAULT_ADMIN_ROLE), IRREVERSIBLE
     function emergencyShutdown() external onlyRole(DEFAULT_ADMIN_ROLE) {
         emergencyMode = true;
         _pause();
@@ -373,11 +438,16 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         emit EmergencyShutdown(msg.sender, block.timestamp, totalStaked, 0);
     }
 
+    /// @notice Pause the contract (prevents staking, claiming, requesting withdrawals)
+    /// @dev executeWithdraw still works when paused. Use unpause() to resume.
+    /// @custom:security onlyRole(ADMIN_ROLE)
     function pause() external onlyRole(ADMIN_ROLE) {
         _pause();
         emit ContractPaused(msg.sender, block.timestamp);
     }
 
+    /// @notice Unpause the contract to resume normal operations
+    /// @custom:security onlyRole(ADMIN_ROLE)
     function unpause() external onlyRole(ADMIN_ROLE) {
         _unpause();
         emit ContractUnpaused(msg.sender, block.timestamp);
@@ -388,6 +458,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     /// @param fromUser Current owner of the stake
     /// @param stakeId ID of the stake to transfer
     /// @param toUser New owner of the stake
+    /// @custom:security nonReentrant, onlyRole(ADMIN_ROLE)
     function adminTransferStake(
         address fromUser,
         uint256 stakeId,
@@ -417,23 +488,33 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     // ============ View Functions ============
 
     /// @notice Get all stake positions for a user
+    /// @param user Address of the user
+    /// @return Array of StakePosition structs
     function getStakeInfo(address user) external view returns (StakePosition[] memory) {
         return userStakes[user];
     }
 
     /// @notice Get a specific stake position by stakeId
+    /// @param user Address of the user
+    /// @param stakeId The unique identifier of the stake position
+    /// @return StakePosition struct
     function getStakeByStakeId(address user, uint256 stakeId) external view returns (StakePosition memory) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
         return userStakes[user][stakeIdToIndex[user][stakeId]];
     }
 
     /// @notice Calculate pending rewards for a specific position
+    /// @param user Address of the user
+    /// @param stakeId The unique identifier of the stake position
+    /// @return Pending reward amount in tokens
     function calculateRewards(address user, uint256 stakeId) external view returns (uint256) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
         return _calculatePositionRewards(user, stakeIdToIndex[user][stakeId]);
     }
 
     /// @notice Calculate total pending rewards across all positions
+    /// @param user Address of the user
+    /// @return Total pending reward amount in tokens
     function calculateTotalRewards(address user) external view returns (uint256) {
         uint256 total = 0;
         uint256 length = userStakes[user].length;
@@ -444,11 +525,16 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     }
 
     /// @notice Get all withdrawal requests (including executed - for history)
+    /// @param user Address of the user
+    /// @return Array of WithdrawRequest structs
     function getPendingWithdrawals(address user) external view returns (WithdrawRequest[] memory) {
         return userWithdrawRequests[user];
     }
 
     /// @notice Get current tier (1-6) for a specific position
+    /// @param user Address of the user
+    /// @param stakeId The unique identifier of the stake position
+    /// @return Tier number (1-6)
     function getCurrentTier(address user, uint256 stakeId) external view returns (uint8) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
         StakePosition memory position = userStakes[user][stakeIdToIndex[user][stakeId]];
@@ -456,22 +542,29 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     }
 
     /// @notice Get number of active stake positions for a user
+    /// @param user Address of the user
+    /// @return Number of active positions
     function getUserStakeCount(address user) external view returns (uint256) {
         return userStakes[user].length;
     }
 
     /// @notice Get current treasury balance available for rewards
+    /// @return Treasury balance in tokens
     function getTreasuryBalance() external view returns (uint256) {
         return treasuryBalance;
     }
 
     /// @notice Get tier configuration (startTime, endTime, rate)
+    /// @param tier Tier index (0-5)
+    /// @return TierConfig struct with startTime, endTime, and rate
     function getTierConfig(uint8 tier) external view returns (TierConfig memory) {
         if (tier >= MAX_TIERS) revert InvalidTier();
         return tiers[tier];
     }
 
     /// @notice Get only active (non-executed) pending withdrawals
+    /// @param user Address of the user
+    /// @return Array of active WithdrawRequest structs
     function getActivePendingWithdrawals(address user) external view returns (WithdrawRequest[] memory) {
         uint256 activeCount = pendingWithdrawCount[user];
         if (activeCount == 0) {

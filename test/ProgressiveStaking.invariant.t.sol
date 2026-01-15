@@ -20,10 +20,10 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
  * - warpTime(): Advance blockchain time (1-30 days)
  *
  * Ghost Variables:
- * - ghost_totalStaked: Running total of all stakes (for cross-checking)
- * - ghost_totalWithdrawn: Running total of all withdrawals
- * - ghost_totalClaimed: Running total of all claimed rewards
- * - ghost_userStaked: Per-user staked amounts
+ * - ghostTotalStaked: Running total of all stakes (for cross-checking)
+ * - ghostTotalWithdrawn: Running total of all withdrawals
+ * - ghostTotalClaimed: Running total of all claimed rewards
+ * - ghostUserStaked: Per-user staked amounts
  */
 contract StakingHandler is Test {
     ProgressiveStaking public staking;
@@ -33,11 +33,11 @@ contract StakingHandler is Test {
     address public currentActor;
 
     // Ghost variables track expected state for invariant verification
-    uint256 public ghost_totalStaked;
-    uint256 public ghost_totalWithdrawn;
-    uint256 public ghost_totalClaimed;
+    uint256 public ghostTotalStaked;
+    uint256 public ghostTotalWithdrawn;
+    uint256 public ghostTotalClaimed;
 
-    mapping(address => uint256) public ghost_userStaked;
+    mapping(address => uint256) public ghostUserStaked;
 
     /**
      * @notice Initialize handler with staking contract and create test actors
@@ -81,8 +81,8 @@ contract StakingHandler is Test {
 
         staking.stake(amount);
 
-        ghost_totalStaked += amount;
-        ghost_userStaked[currentActor] += amount;
+        ghostTotalStaked += amount;
+        ghostUserStaked[currentActor] += amount;
     }
 
     /**
@@ -137,8 +137,8 @@ contract StakingHandler is Test {
 
         staking.executeWithdraw(stakeId);
 
-        ghost_totalWithdrawn += withdrawAmount;
-        ghost_userStaked[currentActor] -= withdrawAmount;
+        ghostTotalWithdrawn += withdrawAmount;
+        ghostUserStaked[currentActor] -= withdrawAmount;
     }
 
     /**
@@ -159,7 +159,7 @@ contract StakingHandler is Test {
         if (rewards > staking.getTreasuryBalance()) return; // Skip if treasury insufficient
 
         staking.claimRewards(stakeId);
-        ghost_totalClaimed += rewards;
+        ghostTotalClaimed += rewards;
     }
 
     /**
@@ -371,8 +371,8 @@ contract ProgressiveStakingInvariantTest is StdInvariant, Test {
      */
     function invariant_callSummary() public view {
         // Uncomment for debugging:
-        // console.log("Total Staked (ghost):", handler.ghost_totalStaked());
-        // console.log("Total Withdrawn (ghost):", handler.ghost_totalWithdrawn());
-        // console.log("Total Claimed (ghost):", handler.ghost_totalClaimed());
+        // console.log("Total Staked (ghost):", handler.ghostTotalStaked());
+        // console.log("Total Withdrawn (ghost):", handler.ghostTotalWithdrawn());
+        // console.log("Total Claimed (ghost):", handler.ghostTotalClaimed());
     }
 }
