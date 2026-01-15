@@ -439,3 +439,41 @@ Special mode for project founders:
 - No interest (APY = 0%)
 - Standard 3-month notice period
 - Automatic detection: founders without interest, public with interest
+
+---
+
+## 10. Change Log
+
+### v1.1.0 - Admin Stake Transfer (Web2→Web3 Conversion)
+
+**New Requirement:** Support for users transitioning from web2 (custodial) to web3 (self-custody).
+
+**Use Case:**
+- Some users purchase tokens through traditional channels (web2) and have their stakes managed by a single admin address
+- When a user wants to take control of their tokens (web3), the admin can transfer the stake to the user's own wallet
+
+**New Function:**
+```solidity
+function adminTransferStake(
+    address fromUser,
+    uint256 stakeId,
+    address toUser
+) external onlyRole(ADMIN_ROLE)
+```
+
+**Behavior:**
+- ✅ Only callable by `ADMIN_ROLE`
+- ✅ Preserves `startTime` (tier progression continues)
+- ✅ Does NOT auto-claim rewards (new owner claims them)
+- ❌ Cannot transfer if stake has pending withdrawal request
+- ❌ Cannot transfer to zero address or self
+
+**New Event:**
+```solidity
+event StakeTransferred(address indexed from, address indexed to, uint256 indexed stakeId, uint256 timestamp);
+```
+
+**Security:**
+- Admin-only operation prevents phishing attacks
+- Off-chain identity verification recommended before transfer
+- Pending withdrawals must be cancelled or executed first

@@ -85,6 +85,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     event TreasuryDeposited(address indexed from, uint256 amount, uint256 timestamp);
     event TreasuryWithdrawn(address indexed to, uint256 amount, uint256 timestamp);
     event EmergencyWithdrawn(address indexed user, uint256 principal, uint256 rewards, uint256 timestamp);
+    event StakeTransferred(address indexed from, address indexed to, uint256 indexed stakeId, uint256 timestamp);
 
     // ============ Errors ============
 
@@ -105,6 +106,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     error NoStakesToWithdraw();
     error TooManyPendingWithdrawals();
     error StakeAmountTooLow();
+    error TransferToSelf();
 
     // ============ Constructor ============
 
@@ -379,6 +381,37 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     function unpause() external onlyRole(ADMIN_ROLE) {
         _unpause();
         emit ContractUnpaused(msg.sender, block.timestamp);
+    }
+
+    /// @notice Transfer stake position from one user to another (admin only)
+    /// @dev Used for web2->web3 user conversion. Does not claim rewards, preserves startTime.
+    /// @param fromUser Current owner of the stake
+    /// @param stakeId ID of the stake to transfer
+    /// @param toUser New owner of the stake
+    function adminTransferStake(
+        address fromUser,
+        uint256 stakeId,
+        address toUser
+    ) external nonReentrant onlyRole(ADMIN_ROLE) {
+        if (fromUser == address(0)) revert ZeroAddress();
+        if (toUser == address(0)) revert ZeroAddress();
+        if (fromUser == toUser) revert TransferToSelf();
+        if (!stakeIdExists[fromUser][stakeId]) revert InvalidStakeId();
+        if (hasPendingWithdraw[fromUser][stakeId]) revert PositionHasPendingWithdraw();
+
+        uint256 positionIndex = stakeIdToIndex[fromUser][stakeId];
+        StakePosition memory position = userStakes[fromUser][positionIndex];
+
+        // Remove from original owner
+        _removePosition(fromUser, positionIndex);
+
+        // Add to new owner
+        userStakes[toUser].push(position);
+        uint256 newIndex = userStakes[toUser].length - 1;
+        stakeIdToIndex[toUser][stakeId] = newIndex;
+        stakeIdExists[toUser][stakeId] = true;
+
+        emit StakeTransferred(fromUser, toUser, stakeId, block.timestamp);
     }
 
     // ============ View Functions ============

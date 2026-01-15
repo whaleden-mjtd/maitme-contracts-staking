@@ -297,4 +297,162 @@ contract ProgressiveStakingAccessTest is ProgressiveStakingBaseTest {
 
         assertEq(staking.pendingWithdrawCount(user1), 0);
     }
+
+    // ============ Admin Transfer Stake Tests ============
+
+    /// @notice Test successful stake transfer from one user to another
+    function test_AdminTransferStake() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        assertEq(staking.getUserStakeCount(user1), 1);
+        assertEq(staking.getUserStakeCount(user2), 0);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+
+        assertEq(staking.getUserStakeCount(user1), 0);
+        assertEq(staking.getUserStakeCount(user2), 1);
+
+        ProgressiveStaking.StakePosition[] memory positions = staking.getStakeInfo(user2);
+        assertEq(positions[0].stakeId, 1);
+        assertEq(positions[0].amount, 1000 ether);
+    }
+
+    /// @notice Test that transferred stake preserves startTime (tier progression)
+    function test_AdminTransferStakePreservesStartTime() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        uint256 originalStartTime = block.timestamp;
+
+        vm.warp(block.timestamp + 100 days);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+
+        ProgressiveStaking.StakePosition[] memory positions = staking.getStakeInfo(user2);
+        assertEq(positions[0].startTime, originalStartTime);
+    }
+
+    /// @notice Test that new owner can claim rewards after transfer
+    function test_AdminTransferStakeNewOwnerCanClaimRewards() public {
+        vm.prank(user1);
+        staking.stake(10_000 ether);
+
+        vm.warp(block.timestamp + 180 days);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+
+        uint256 rewards = staking.calculateTotalRewards(user2);
+        assertGt(rewards, 0);
+
+        uint256 balanceBefore = token.balanceOf(user2);
+        vm.prank(user2);
+        staking.claimAllRewards();
+        uint256 balanceAfter = token.balanceOf(user2);
+
+        assertEq(balanceAfter - balanceBefore, rewards);
+    }
+
+    /// @notice Test that original owner has no rewards after transfer
+    function test_AdminTransferStakeOriginalOwnerNoRewards() public {
+        vm.prank(user1);
+        staking.stake(10_000 ether);
+
+        vm.warp(block.timestamp + 180 days);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+
+        uint256 rewards = staking.calculateTotalRewards(user1);
+        assertEq(rewards, 0);
+    }
+
+    /// @notice Test transfer reverts with pending withdraw request
+    function test_AdminTransferStakeRevertsWithPendingWithdraw() public {
+        vm.startPrank(user1);
+        staking.stake(1000 ether);
+        staking.requestWithdraw(1, 500 ether);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.PositionHasPendingWithdraw.selector);
+        staking.adminTransferStake(user1, 1, user2);
+    }
+
+    /// @notice Test transfer reverts when called by non-admin
+    function test_AdminTransferStakeRevertsNonAdmin() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert();
+        staking.adminTransferStake(user1, 1, user2);
+    }
+
+    /// @notice Test transfer reverts with invalid stakeId
+    function test_AdminTransferStakeRevertsInvalidStakeId() public {
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.InvalidStakeId.selector);
+        staking.adminTransferStake(user1, 999, user2);
+    }
+
+    /// @notice Test transfer reverts with zero toUser address
+    function test_AdminTransferStakeRevertsZeroToAddress() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.ZeroAddress.selector);
+        staking.adminTransferStake(user1, 1, address(0));
+    }
+
+    /// @notice Test transfer reverts with zero fromUser address
+    function test_AdminTransferStakeRevertsZeroFromAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.ZeroAddress.selector);
+        staking.adminTransferStake(address(0), 1, user2);
+    }
+
+    /// @notice Test transfer reverts when transferring to self
+    function test_AdminTransferStakeRevertsTransferToSelf() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(owner);
+        vm.expectRevert(ProgressiveStaking.TransferToSelf.selector);
+        staking.adminTransferStake(user1, 1, user1);
+    }
+
+    /// @notice Test StakeTransferred event is emitted
+    function test_AdminTransferStakeEmitsEvent() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.expectEmit(true, true, true, true);
+        emit ProgressiveStaking.StakeTransferred(user1, user2, 1, block.timestamp);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+    }
+
+    /// @notice Test multiple transfers of same stake
+    function test_AdminTransferStakeMultipleTransfers() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.prank(owner);
+        staking.adminTransferStake(user1, 1, user2);
+
+        assertEq(staking.getUserStakeCount(user2), 1);
+
+        address user3 = makeAddr("user3");
+        vm.prank(owner);
+        staking.adminTransferStake(user2, 1, user3);
+
+        assertEq(staking.getUserStakeCount(user2), 0);
+        assertEq(staking.getUserStakeCount(user3), 1);
+    }
 }
