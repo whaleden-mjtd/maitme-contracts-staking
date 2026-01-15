@@ -1,24 +1,24 @@
 import type { Address } from "viem";
 
 export interface StakePosition {
-  stakeId: bigint;
-  amount: bigint;
-  startTime: bigint;
-  lastClaimTime: bigint;
+  readonly stakeId: bigint;
+  readonly amount: bigint;
+  readonly startTime: bigint;
+  readonly lastClaimTime: bigint;
 }
 
 export interface WithdrawRequest {
-  stakeId: bigint;
-  amount: bigint;
-  requestTime: bigint;
-  availableAt: bigint;
-  executed: boolean;
+  readonly stakeId: bigint;
+  readonly amount: bigint;
+  readonly requestTime: bigint;
+  readonly availableAt: bigint;
+  readonly executed: boolean;
 }
 
 export interface TierConfig {
-  startTime: bigint;
-  endTime: bigint;
-  rate: bigint;
+  readonly startTime: bigint;
+  readonly endTime: bigint;
+  readonly rate: bigint;
 }
 
 export interface FormattedStakePosition {

@@ -95,6 +95,19 @@ const { stakeHash } = await client.stakeWithApproval(amount);
 | `cancelWithdrawRequest(stakeId)` | Cancel pending withdrawal |
 | `emergencyWithdraw()` | Emergency withdraw (only in emergency mode) |
 
+### Admin Methods
+
+These methods require ADMIN_ROLE or DEFAULT_ADMIN_ROLE:
+
+| Method | Description | Role Required |
+|--------|-------------|---------------|
+| `adminTransferStake(from, stakeId, to)` | Transfer stake ownership | ADMIN_ROLE |
+| `depositTreasury(amount)` | Deposit tokens to treasury | DEFAULT_ADMIN_ROLE |
+| `withdrawTreasury(amount)` | Withdraw from treasury | DEFAULT_ADMIN_ROLE |
+| `pause()` | Pause the contract | ADMIN_ROLE |
+| `unpause()` | Unpause the contract | ADMIN_ROLE |
+| `emergencyShutdown()` | Activate emergency mode (IRREVERSIBLE) | DEFAULT_ADMIN_ROLE |
+
 ### Utility Methods
 
 | Method | Description |

@@ -230,6 +230,53 @@ export const PROGRESSIVE_STAKING_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  // Admin functions
+  {
+    inputs: [
+      { name: "fromUser", type: "address" },
+      { name: "stakeId", type: "uint256" },
+      { name: "toUser", type: "address" },
+    ],
+    name: "adminTransferStake",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "amount", type: "uint256" }],
+    name: "depositTreasury",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "amount", type: "uint256" }],
+    name: "withdrawTreasury",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "pause",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "unpause",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "emergencyShutdown",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
   // Events
   {
     anonymous: false,
@@ -306,6 +353,55 @@ export const PROGRESSIVE_STAKING_ABI = [
       { indexed: false, name: "timestamp", type: "uint256" },
     ],
     name: "EmergencyWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "fromUser", type: "address" },
+      { indexed: true, name: "toUser", type: "address" },
+      { indexed: true, name: "stakeId", type: "uint256" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+    ],
+    name: "StakeTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "admin", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+    ],
+    name: "TreasuryDeposited",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "admin", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+    ],
+    name: "TreasuryWithdrawn",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "admin", type: "address" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+    ],
+    name: "ContractPaused",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "admin", type: "address" },
+      { indexed: false, name: "timestamp", type: "uint256" },
+    ],
+    name: "ContractUnpaused",
     type: "event",
   },
 ] as const;

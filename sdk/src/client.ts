@@ -77,7 +77,7 @@ export class ProgressiveStakingClient {
     return this.tokenAddress;
   }
 
-  async getStakeInfo(user: Address): Promise<StakePosition[]> {
+  async getStakeInfo(user: Address): Promise<readonly StakePosition[]> {
     return this.publicClient.readContract({
       address: this.contractAddress,
       abi: PROGRESSIVE_STAKING_ABI,
@@ -134,7 +134,7 @@ export class ProgressiveStakingClient {
     });
   }
 
-  async getPendingWithdrawals(user: Address): Promise<WithdrawRequest[]> {
+  async getPendingWithdrawals(user: Address): Promise<readonly WithdrawRequest[]> {
     return this.publicClient.readContract({
       address: this.contractAddress,
       abi: PROGRESSIVE_STAKING_ABI,
@@ -145,7 +145,7 @@ export class ProgressiveStakingClient {
 
   async getActivePendingWithdrawals(
     user: Address
-  ): Promise<WithdrawRequest[]> {
+  ): Promise<readonly WithdrawRequest[]> {
     return this.publicClient.readContract({
       address: this.contractAddress,
       abi: PROGRESSIVE_STAKING_ABI,
@@ -430,6 +430,94 @@ export class ProgressiveStakingClient {
       address: this.contractAddress,
       abi: PROGRESSIVE_STAKING_ABI,
       functionName: "emergencyWithdraw",
+    });
+  }
+
+  // ============ Admin Methods ============
+
+  /**
+   * Transfer stake from one user to another (admin only)
+   * Used for web2->web3 user migration
+   */
+  async adminTransferStake(
+    fromUser: Address,
+    stakeId: bigint,
+    toUser: Address
+  ): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "adminTransferStake",
+      args: [fromUser, stakeId, toUser],
+    });
+  }
+
+  /**
+   * Deposit tokens to treasury for reward payments (admin only)
+   */
+  async depositTreasury(amount: bigint): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "depositTreasury",
+      args: [amount],
+    });
+  }
+
+  /**
+   * Withdraw tokens from treasury (admin only)
+   */
+  async withdrawTreasury(amount: bigint): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "withdrawTreasury",
+      args: [amount],
+    });
+  }
+
+  /**
+   * Pause the contract (admin only)
+   */
+  async pause(): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "pause",
+    });
+  }
+
+  /**
+   * Unpause the contract (admin only)
+   */
+  async unpause(): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "unpause",
+    });
+  }
+
+  /**
+   * Activate emergency mode - IRREVERSIBLE (admin only)
+   */
+  async emergencyShutdown(): Promise<`0x${string}`> {
+    const walletClient = this.ensureWalletClient();
+
+    return walletClient.writeContract({
+      address: this.contractAddress,
+      abi: PROGRESSIVE_STAKING_ABI,
+      functionName: "emergencyShutdown",
     });
   }
 
