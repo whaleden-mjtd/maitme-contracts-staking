@@ -73,6 +73,7 @@ Deploys a **mock ERC20 token** + staking contract. Useful for testing.
 export PRIVATE_KEY=your_private_key_without_0x
 export SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
 export ETHERSCAN_API_KEY=your_etherscan_key
+export INITIAL_OWNER=0x...  # optional, defaults to deployer (use for multisig)
 export FOUNDER_ADDRESSES=0x123...,0x456...  # optional
 
 # Deploy
@@ -82,7 +83,7 @@ forge script script/DeployTestnet.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast -
 
 This will:
 - Deploy mock MAIT token (100M supply)
-- Deploy ProgressiveStaking contract
+- Deploy ProgressiveStaking contract (owner = INITIAL_OWNER or deployer)
 - Deposit 10M tokens to treasury
 
 #### Deploy to Mainnet (Ethereum)
@@ -95,6 +96,7 @@ export PRIVATE_KEY=your_private_key_without_0x
 export MAINNET_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
 export ETHERSCAN_API_KEY=your_etherscan_key
 export STAKING_TOKEN_ADDRESS=0x...  # existing MAIT token address
+export INITIAL_OWNER=0x...  # optional, defaults to deployer (use for multisig)
 export TREASURY_AMOUNT=10000000000000000000000000  # 10M tokens in wei (optional)
 export FOUNDER_ADDRESSES=0x123...,0x456...  # optional
 
@@ -104,7 +106,7 @@ forge script script/DeployMainnet.s.sol --rpc-url $MAINNET_RPC_URL --broadcast -
 ```
 
 This will:
-- Deploy ProgressiveStaking contract with existing token
+- Deploy ProgressiveStaking contract (owner = INITIAL_OWNER or deployer)
 - Optionally deposit treasury (if TREASURY_AMOUNT is set)
 
 ### Code Coverage

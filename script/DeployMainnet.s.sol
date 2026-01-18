@@ -17,6 +17,7 @@ contract DeployMainnetScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        address initialOwner = vm.envOr("INITIAL_OWNER", deployer);
         address stakingToken = vm.envAddress("STAKING_TOKEN_ADDRESS");
         uint256 treasuryAmount = vm.envOr("TREASURY_AMOUNT", uint256(0));
 
@@ -28,6 +29,7 @@ contract DeployMainnetScript is Script {
 
         console.log("=== Mainnet Deployment (Ethereum) ===");
         console.log("Deployer:", deployer);
+        console.log("Initial Owner:", initialOwner);
         console.log("Staking Token:", stakingToken);
 
         // Check deployer token balance if treasury deposit is planned
@@ -42,7 +44,7 @@ contract DeployMainnetScript is Script {
 
         // 1. Deploy staking contract
         ProgressiveStaking staking = new ProgressiveStaking(
-            deployer,
+            initialOwner,
             stakingToken,
             founders,
             tierRates
@@ -66,7 +68,7 @@ contract DeployMainnetScript is Script {
         console.log("=== Deployment Summary ===");
         console.log("Token:", stakingToken);
         console.log("Staking:", address(staking));
-        console.log("Owner:", deployer);
+        console.log("Owner:", initialOwner);
         console.log("Founders:", founders.length);
         console.log("");
         console.log("Tier rates (basis points):");

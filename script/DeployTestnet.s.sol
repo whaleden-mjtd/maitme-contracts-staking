@@ -23,12 +23,14 @@ contract DeployTestnetScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        address initialOwner = vm.envOr("INITIAL_OWNER", deployer);
 
         // Parse founder addresses
         address[] memory founders = _parseFounders();
 
         console.log("=== Testnet Deployment (Sepolia) ===");
         console.log("Deployer:", deployer);
+        console.log("Initial Owner:", initialOwner);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -42,7 +44,7 @@ contract DeployTestnetScript is Script {
 
         // 3. Deploy staking contract
         ProgressiveStaking staking = new ProgressiveStaking(
-            deployer,
+            initialOwner,
             address(token),
             founders,
             tierRates
@@ -61,7 +63,7 @@ contract DeployTestnetScript is Script {
         console.log("=== Deployment Summary ===");
         console.log("Token:", address(token));
         console.log("Staking:", address(staking));
-        console.log("Owner:", deployer);
+        console.log("Owner:", initialOwner);
         console.log("Founders:", founders.length);
         console.log("Treasury:", TREASURY_AMOUNT / 1 ether, "tokens");
         console.log("");
