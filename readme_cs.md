@@ -131,6 +131,13 @@ function stake(uint256 amount) external {
 2. Po 90 dnech: `executeWithdraw(stakeId)` - skutečný výběr tokenů
 3. Během výpovědní lhůty: rewards se stále počítají
 
+#### Poznámky k provozu (custody / Web2 integrace)
+
+- **Limit pending výpovědí:** Každá adresa může mít najednou maximálně `MAX_PENDING_WITHDRAWALS` aktivních (neprovedených) výpovědí.
+- **Custody škálování:** Pokud držíte stake pozice mnoha koncových uživatelů pod jednou on-chain adresou (např. Web2 custody účet), výběry mohou být omezeny tímto limitem.
+- **Doporučený postup:** Použijte více custody adres (batching/sharding) a stake pozice mezi nimi přesouvejte pomocí `adminTransferStake(from, stakeId, to)` ještě před vytvořením výpovědi.
+- **Důležité:** `adminTransferStake` neumí přesunout pozici, která už má aktivní výpověď.
+
 ```solidity
 struct WithdrawRequest {
     uint256 stakeId;

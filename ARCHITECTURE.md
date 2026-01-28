@@ -166,6 +166,8 @@ TierConfig[6] public tiers;
 5. **DoS Prevention** - MAX_PENDING_WITHDRAWALS = 10
 6. **Minimum Stake** - MIN_STAKE_AMOUNT = 0.001 tokens
 
+Operational note: The `MAX_PENDING_WITHDRAWALS` cap is enforced per address. Custodial/Web2 integrations that aggregate many users under a single address should shard custody across multiple addresses and use `adminTransferStake` to move positions before creating withdrawal requests.
+
 ### Invariants
 1. `totalStaked + treasuryBalance == token.balanceOf(contract)` (after all operations)
 2. `pendingWithdrawCount[user] <= MAX_PENDING_WITHDRAWALS`
