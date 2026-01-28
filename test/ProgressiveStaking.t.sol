@@ -356,6 +356,47 @@ contract ProgressiveStakingTest is Test {
         assertEq(position.amount, 500 ether);
     }
 
+    function test_PartialWithdrawDoesNotLoseRewardsIfTreasuryInsufficient() public {
+        uint256 amount = 1000 ether;
+
+        vm.prank(user1);
+        staking.stake(amount);
+
+        vm.warp(block.timestamp + 100 days);
+
+        vm.prank(user1);
+        staking.requestWithdraw(1, 500 ether);
+
+        ProgressiveStaking.StakePosition memory beforePosition = staking.getStakeByStakeId(user1, 1);
+        uint256 lastClaimBefore = beforePosition.lastClaimTime;
+
+        vm.warp(block.timestamp + 91 days);
+
+        vm.startPrank(owner);
+        staking.withdrawTreasury(TREASURY_AMOUNT);
+        token.approve(address(staking), 100 ether);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        staking.executeWithdraw(1);
+
+        ProgressiveStaking.StakePosition memory afterPosition = staking.getStakeByStakeId(user1, 1);
+        assertEq(afterPosition.amount, 500 ether);
+        assertEq(afterPosition.lastClaimTime, lastClaimBefore);
+
+        uint256 userBalanceBefore = token.balanceOf(user1);
+
+        vm.startPrank(owner);
+        staking.depositTreasury(100 ether);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        staking.claimRewards(1);
+
+        uint256 userBalanceAfter = token.balanceOf(user1);
+        assertGt(userBalanceAfter, userBalanceBefore);
+    }
+
     // ============ Admin Tests ============
 
     /**

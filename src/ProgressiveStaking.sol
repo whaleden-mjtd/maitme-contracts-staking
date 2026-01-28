@@ -293,15 +293,19 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         // Claim any pending rewards first
         uint256 rewards = _calculatePositionRewards(msg.sender, positionIndex);
+        bool rewardsPaid = false;
         if (rewards > 0 && treasuryBalance >= rewards) {
             treasuryBalance -= rewards;
             stakingToken.safeTransfer(msg.sender, rewards);
+            rewardsPaid = true;
             emit RewardsClaimed(msg.sender, stakeId, rewards, block.timestamp);
         }
 
         uint256 withdrawAmount = request.amount;
         position.amount -= withdrawAmount;
-        position.lastClaimTime = block.timestamp;
+        if (rewards == 0 || rewardsPaid) {
+            position.lastClaimTime = block.timestamp;
+        }
         totalStaked -= withdrawAmount;
 
         // If position is empty, remove it
