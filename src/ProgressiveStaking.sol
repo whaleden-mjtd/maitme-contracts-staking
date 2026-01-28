@@ -266,6 +266,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         if (amount > position.amount) revert InsufficientStakeBalance();
 
+        uint256 remainingAmount = position.amount - amount;
+        if (remainingAmount != 0 && remainingAmount < MIN_STAKE_AMOUNT) revert StakeAmountTooLow();
+
         // Check if there's already a pending withdraw for this stakeId
         if (hasPendingWithdraw[msg.sender][stakeId]) revert PositionHasPendingWithdraw();
 

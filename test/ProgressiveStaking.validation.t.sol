@@ -324,6 +324,20 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         staking.stake(1);
     }
 
+    /// @notice Test requestWithdraw reverts if it would leave a non-zero remainder below MIN_STAKE_AMOUNT
+    function test_RequestWithdrawRevertsIfRemainingBelowMinimum() public {
+        uint256 minAmount = staking.MIN_STAKE_AMOUNT();
+
+        // Stake exactly MIN_STAKE_AMOUNT
+        vm.prank(user1);
+        staking.stake(minAmount);
+
+        // Withdraw minAmount - 1 leaves 1 wei remaining (below minimum) -> should revert
+        vm.prank(user1);
+        vm.expectRevert(ProgressiveStaking.StakeAmountTooLow.selector);
+        staking.requestWithdraw(1, minAmount - 1);
+    }
+
     // ============ Long-term Array Growth Tests ============
 
     /// @notice Test withdraw request array growth over time
