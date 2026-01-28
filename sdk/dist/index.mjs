@@ -92,7 +92,8 @@ var PROGRESSIVE_STAKING_ABI = [
           { name: "amount", type: "uint256" },
           { name: "requestTime", type: "uint256" },
           { name: "availableAt", type: "uint256" },
-          { name: "executed", type: "bool" }
+          { name: "executed", type: "bool" },
+          { name: "cancelled", type: "bool" }
         ],
         name: "",
         type: "tuple[]"
@@ -111,7 +112,8 @@ var PROGRESSIVE_STAKING_ABI = [
           { name: "amount", type: "uint256" },
           { name: "requestTime", type: "uint256" },
           { name: "availableAt", type: "uint256" },
-          { name: "executed", type: "bool" }
+          { name: "executed", type: "bool" },
+          { name: "cancelled", type: "bool" }
         ],
         name: "",
         type: "tuple[]"
@@ -680,6 +682,7 @@ var ProgressiveStakingClient = class _ProgressiveStakingClient {
         requestTime: new Date(Number(req.requestTime) * 1e3),
         availableAt,
         executed: req.executed,
+        cancelled: req.cancelled,
         isReady,
         daysUntilReady
       };

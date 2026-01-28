@@ -12,6 +12,7 @@ interface WithdrawRequest {
     readonly requestTime: bigint;
     readonly availableAt: bigint;
     readonly executed: boolean;
+    readonly cancelled: boolean;
 }
 interface TierConfig {
     readonly startTime: bigint;
@@ -34,6 +35,7 @@ interface FormattedWithdrawRequest {
     requestTime: Date;
     availableAt: Date;
     executed: boolean;
+    cancelled: boolean;
     isReady: boolean;
     daysUntilReady: number;
 }
@@ -294,6 +296,9 @@ declare const PROGRESSIVE_STAKING_ABI: readonly [{
         }, {
             readonly name: "executed";
             readonly type: "bool";
+        }, {
+            readonly name: "cancelled";
+            readonly type: "bool";
         }];
         readonly name: "";
         readonly type: "tuple[]";
@@ -321,6 +326,9 @@ declare const PROGRESSIVE_STAKING_ABI: readonly [{
             readonly type: "uint256";
         }, {
             readonly name: "executed";
+            readonly type: "bool";
+        }, {
+            readonly name: "cancelled";
             readonly type: "bool";
         }];
         readonly name: "";

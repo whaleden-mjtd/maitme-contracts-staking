@@ -290,6 +290,7 @@ export class ProgressiveStakingClient {
           requestTime: new Date(Number(req.requestTime) * 1000),
           availableAt,
           executed: req.executed,
+          cancelled: req.cancelled,
           isReady,
           daysUntilReady,
         };

@@ -56,6 +56,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 requestTime;
         uint256 availableAt;
         bool executed;
+        bool cancelled;
     }
 
     struct TierConfig {
@@ -284,7 +285,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             amount: amount,
             requestTime: block.timestamp,
             availableAt: availableAt,
-            executed: false
+            executed: false,
+            cancelled: false
         });
 
         userWithdrawRequests[msg.sender].push(request);
@@ -310,6 +312,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         if (block.timestamp < request.availableAt) revert WithdrawNotReady();
 
         request.executed = true;
+        request.cancelled = false;
 
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
         StakePosition storage position = userStakes[msg.sender][positionIndex];
@@ -365,6 +368,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         uint256 amount = request.amount;
         request.executed = true; // Mark as executed to prevent reuse
+        request.cancelled = true;
 
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
 

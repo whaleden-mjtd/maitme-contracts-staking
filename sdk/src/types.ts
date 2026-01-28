@@ -13,6 +13,7 @@ export interface WithdrawRequest {
   readonly requestTime: bigint;
   readonly availableAt: bigint;
   readonly executed: boolean;
+  readonly cancelled: boolean;
 }
 
 export interface TierConfig {
@@ -38,6 +39,7 @@ export interface FormattedWithdrawRequest {
   requestTime: Date;
   availableAt: Date;
   executed: boolean;
+  cancelled: boolean;
   isReady: boolean;
   daysUntilReady: number;
 }

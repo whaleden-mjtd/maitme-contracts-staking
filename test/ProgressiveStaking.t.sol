@@ -260,6 +260,8 @@ contract ProgressiveStakingTest is Test {
         assertEq(requests.length, 1);
         assertEq(requests[0].amount, amount);
         assertEq(requests[0].availableAt, block.timestamp + 90 days);
+        assertEq(requests[0].executed, false);
+        assertEq(requests[0].cancelled, false);
     }
 
     /**
@@ -332,6 +334,11 @@ contract ProgressiveStakingTest is Test {
 
         // Position should still exist
         assertEq(staking.getUserStakeCount(user1), 1);
+
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getPendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        assertEq(requests[0].executed, true);
+        assertEq(requests[0].cancelled, true);
 
         uint256 rewardsAfterCancel = staking.calculateRewards(user1, 1);
         vm.warp(block.timestamp + 10 days);

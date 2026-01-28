@@ -255,11 +255,27 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.executeWithdraw(2);
 
+        ProgressiveStaking.WithdrawRequest[] memory allAfterExec = staking.getPendingWithdrawals(user1);
+        for (uint256 i = 0; i < allAfterExec.length; i++) {
+            if (allAfterExec[i].stakeId == 2) {
+                assertEq(allAfterExec[i].executed, true);
+                assertEq(allAfterExec[i].cancelled, false);
+            }
+        }
+
         active = staking.getActivePendingWithdrawals(user1);
         assertEq(active.length, 2);
 
         vm.prank(user1);
         staking.cancelWithdrawRequest(1);
+
+        ProgressiveStaking.WithdrawRequest[] memory allAfterCancel = staking.getPendingWithdrawals(user1);
+        for (uint256 i = 0; i < allAfterCancel.length; i++) {
+            if (allAfterCancel[i].stakeId == 1) {
+                assertEq(allAfterCancel[i].executed, true);
+                assertEq(allAfterCancel[i].cancelled, true);
+            }
+        }
 
         active = staking.getActivePendingWithdrawals(user1);
         assertEq(active.length, 1);
