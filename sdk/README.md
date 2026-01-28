@@ -146,6 +146,7 @@ interface FormattedWithdrawRequest {
   requestTime: Date;
   availableAt: Date;
   executed: boolean;
+  cancelled: boolean;
   isReady: boolean;
   daysUntilReady: number;
 }

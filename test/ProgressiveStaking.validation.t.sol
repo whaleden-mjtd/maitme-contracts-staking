@@ -185,19 +185,19 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
     // ============ View Functions Edge Cases ============
 
     /// @notice Test getStakeInfo returns empty array for user with no stakes
-    function test_GetStakeInfoEmptyUser() public {
+    function test_GetStakeInfoEmptyUser() public view {
         ProgressiveStaking.StakePosition[] memory positions = staking.getStakeInfo(user1);
         assertEq(positions.length, 0);
     }
 
     /// @notice Test calculateTotalRewards returns 0 for user with no stakes
-    function test_CalculateTotalRewardsEmptyUser() public {
+    function test_CalculateTotalRewardsEmptyUser() public view {
         uint256 rewards = staking.calculateTotalRewards(user1);
         assertEq(rewards, 0);
     }
 
     /// @notice Test getUserStakeCount returns 0 for user with no stakes
-    function test_GetUserStakeCountEmptyUser() public {
+    function test_GetUserStakeCountEmptyUser() public view {
         uint256 count = staking.getUserStakeCount(user1);
         assertEq(count, 0);
     }

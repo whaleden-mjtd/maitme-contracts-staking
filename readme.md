@@ -401,18 +401,16 @@ event AllRewardsClaimed(address indexed user, uint256 totalRewardAmount, uint256
 event WithdrawRequested(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 timestamp, uint256 availableAt);
 event WithdrawExecuted(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 timestamp);
 event WithdrawCancelled(address indexed user, uint256 indexed stakeId, uint256 amount, uint256 timestamp);
+event EmergencyWithdrawn(address indexed user, uint256 principal, uint256 rewards, uint256 timestamp);
 
 // Admin actions
 event EmergencyShutdown(address indexed admin, uint256 timestamp, uint256 totalStaked, uint256 totalRewards);
 event ContractPaused(address indexed admin, uint256 timestamp);
 event ContractUnpaused(address indexed admin, uint256 timestamp);
-event TierRatesUpdated(address indexed admin, uint256[] newRates, uint256 timestamp);
+event TierRatesUpdated(address indexed admin, uint256[6] newRates, uint256 timestamp);
 event TreasuryDeposited(address indexed from, uint256 amount, uint256 timestamp);
 event TreasuryWithdrawn(address indexed to, uint256 amount, uint256 timestamp);
-
-// Role management
-event AdminRoleGranted(address indexed account, address indexed grantor, uint256 timestamp);
-event AdminRoleRevoked(address indexed account, address indexed revoker, uint256 timestamp);
+event StakeTransferred(address indexed from, address indexed to, uint256 indexed stakeId, uint256 timestamp);
 ```
 
 ## 7. Gas Optimization
