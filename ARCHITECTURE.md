@@ -164,7 +164,8 @@ TierConfig[6] public tiers;
 3. **Access Control** - OpenZeppelin AccessControl
 4. **Pausable** - OpenZeppelin Pausable
 5. **DoS Prevention** - MAX_PENDING_WITHDRAWALS = 10
-6. **Minimum Stake** - MIN_STAKE_AMOUNT = 0.001 tokens
+6. **Stake Count Limit** - MAX_STAKES_PER_ADDRESS = 1000
+7. **Minimum Stake** - MIN_STAKE_AMOUNT = 0.001 tokens
 
 Operational note: The `MAX_PENDING_WITHDRAWALS` cap is enforced per address. Custodial/Web2 integrations that aggregate many users under a single address should shard custody across multiple addresses and use `adminTransferStake` to move positions before creating withdrawal requests.
 

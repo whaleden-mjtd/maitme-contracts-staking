@@ -134,6 +134,7 @@ function stake(uint256 amount) external {
 #### Poznámky k provozu (custody / Web2 integrace)
 
 - **Limit pending výpovědí:** Každá adresa může mít najednou maximálně `MAX_PENDING_WITHDRAWALS` aktivních (neprovedených) výpovědí.
+- **Limit počtu stake pozic:** Každá adresa může mít najednou maximálně `MAX_STAKES_PER_ADDRESS` aktivních stake pozic (kvůli škálování `emergencyWithdraw` a dalších funkcí, které iterují přes pozice).
 - **Custody škálování:** Pokud držíte stake pozice mnoha koncových uživatelů pod jednou on-chain adresou (např. Web2 custody účet), výběry mohou být omezeny tímto limitem.
 - **Doporučený postup:** Použijte více custody adres (batching/sharding) a stake pozice mezi nimi přesouvejte pomocí `adminTransferStake(from, stakeId, to)` ještě před vytvořením výpovědi.
 - **Důležité:** `adminTransferStake` neumí přesunout pozici, která už má aktivní výpověď.

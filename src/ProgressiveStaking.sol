@@ -39,6 +39,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     uint256 public constant RATE_PRECISION = 10000; // 100.00%
     uint8 public constant MAX_TIERS = 6;
     uint256 public constant MAX_PENDING_WITHDRAWALS = 10;
+    uint256 public constant MAX_STAKES_PER_ADDRESS = 1000;
     uint256 public constant MIN_STAKE_AMOUNT = 1e15; // 0.001 tokens
 
     // ============ Structs ============
@@ -123,6 +124,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     error InvalidTier();
     error NoStakesToWithdraw();
     error TooManyPendingWithdrawals();
+    error TooManyStakes();
     error StakeAmountTooLow();
     error TransferToSelf();
 
@@ -165,6 +167,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     function stake(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         if (amount < MIN_STAKE_AMOUNT) revert StakeAmountTooLow();
+        if (userStakes[msg.sender].length >= MAX_STAKES_PER_ADDRESS) revert TooManyStakes();
         if (emergencyMode) revert EmergencyModeActive();
 
         uint256 stakeId = nextStakeId++;

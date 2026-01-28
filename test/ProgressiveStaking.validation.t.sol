@@ -354,6 +354,20 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         staking.requestWithdraw(1, minAmount - 1);
     }
 
+    function test_StakeRevertsIfTooManyStakes() public {
+        uint256 maxStakes = staking.MAX_STAKES_PER_ADDRESS();
+        uint256 minAmount = staking.MIN_STAKE_AMOUNT();
+
+        vm.startPrank(user1);
+        for (uint256 i = 0; i < maxStakes; i++) {
+            staking.stake(minAmount);
+        }
+
+        vm.expectRevert(ProgressiveStaking.TooManyStakes.selector);
+        staking.stake(minAmount);
+        vm.stopPrank();
+    }
+
     // ============ Long-term Array Growth Tests ============
 
     /// @notice Test withdraw request array growth over time

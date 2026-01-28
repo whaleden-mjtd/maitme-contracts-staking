@@ -254,6 +254,7 @@ mapping(address => mapping(uint256 => uint256)) private stakeIdToIndex;
 ### Operational Notes (Custody / Web2 Integration)
 
 - **Pending withdrawal limit:** Each address can have at most `MAX_PENDING_WITHDRAWALS` active (non-executed) withdrawal requests at once.
+- **Stake count limit:** Each address can have at most `MAX_STAKES_PER_ADDRESS` active stake positions at once (to keep `emergencyWithdraw` and other per-position loops reliable).
 - **Custody scaling:** If you custody multiple end-users under a single on-chain address (e.g., a Web2 custody account), withdrawals may be rate-limited by this cap.
 - **Recommended approach:** Use multiple custody addresses (batching/sharding) and move stake positions between them using `adminTransferStake(from, stakeId, to)` **before** creating withdrawal requests.
 - **Important:** `adminTransferStake` cannot move a position that already has a pending withdrawal request.
