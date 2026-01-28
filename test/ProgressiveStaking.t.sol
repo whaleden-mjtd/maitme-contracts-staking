@@ -275,6 +275,8 @@ contract ProgressiveStakingTest is Test {
         vm.prank(user1);
         staking.stake(amount);
 
+        vm.warp(block.timestamp + 10 days);
+
         vm.prank(user1);
         staking.requestWithdraw(1, amount);
 
@@ -320,6 +322,8 @@ contract ProgressiveStakingTest is Test {
         vm.prank(user1);
         staking.stake(1000 ether);
 
+        vm.warp(block.timestamp + 10 days);
+
         vm.prank(user1);
         staking.requestWithdraw(1, 1000 ether);
 
@@ -328,6 +332,28 @@ contract ProgressiveStakingTest is Test {
 
         // Position should still exist
         assertEq(staking.getUserStakeCount(user1), 1);
+
+        uint256 rewardsAfterCancel = staking.calculateRewards(user1, 1);
+        vm.warp(block.timestamp + 10 days);
+        uint256 rewardsLater = staking.calculateRewards(user1, 1);
+        assertGt(rewardsLater, rewardsAfterCancel);
+    }
+
+    function test_RewardsDoNotAccrueAfterWithdrawRequest() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.warp(block.timestamp + 30 days);
+
+        vm.prank(user1);
+        staking.requestWithdraw(1, 1000 ether);
+
+        uint256 rewardsAtRequest = staking.calculateRewards(user1, 1);
+
+        vm.warp(block.timestamp + 30 days);
+
+        uint256 rewardsLater = staking.calculateRewards(user1, 1);
+        assertEq(rewardsLater, rewardsAtRequest);
     }
 
     /**
