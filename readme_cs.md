@@ -129,7 +129,7 @@ function stake(uint256 amount) external {
 **3měsíční výpovědní lhůta:**
 1. `requestWithdraw(stakeId, amount)` - zahájí 90denní odpočet
 2. Po 90 dnech: `executeWithdraw(stakeId)` - skutečný výběr tokenů
-3. Během výpovědní lhůty: rewards se stále počítají
+3. Během výpovědní lhůty: výpočet rewards pro danou pozici se zmrazí na čas requestu (rewards se během pending requestu nezvyšují)
 
 #### Poznámky k provozu (custody / Web2 integrace)
 
@@ -146,6 +146,7 @@ struct WithdrawRequest {
     uint256 requestTime;
     uint256 availableAt;    // requestTime + 90 days
     bool executed;
+    bool cancelled;
 }
 ```
 

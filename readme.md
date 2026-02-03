@@ -314,7 +314,7 @@ function stake(uint256 amount) external {
 **3-month notice period:**
 1. `requestWithdraw(stakeId, amount)` - starts 90-day countdown
 2. After 90 days: `executeWithdraw(stakeId)` - actual token withdrawal
-3. During notice period: rewards continue to accrue
+3. During notice period: reward accrual for the position is frozen at the request time (rewards do not increase while a request is pending)
 
 ```solidity
 struct WithdrawRequest {
@@ -323,6 +323,7 @@ struct WithdrawRequest {
     uint256 requestTime;
     uint256 availableAt;    // requestTime + 90 days
     bool executed;
+    bool cancelled;
 }
 ```
 
