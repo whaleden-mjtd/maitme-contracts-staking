@@ -346,6 +346,70 @@ contract ProgressiveStakingTest is Test {
         assertGt(rewardsLater, rewardsAfterCancel);
     }
 
+    function test_CancelWithdrawRequestResumesAccrualWhenTreasuryInsufficient() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.warp(block.timestamp + 30 days);
+
+        vm.prank(user1);
+        staking.requestWithdraw(1, 1000 ether);
+
+        uint256 rewardsFrozen = staking.calculateRewards(user1, 1);
+        assertGt(rewardsFrozen, 0);
+
+        vm.startPrank(owner);
+        staking.withdrawTreasury(TREASURY_AMOUNT);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(user1);
+        staking.cancelWithdrawRequest(1);
+
+        uint256 rewardsAfterCancel = staking.calculateRewards(user1, 1);
+        assertEq(rewardsAfterCancel, rewardsFrozen);
+
+        vm.warp(block.timestamp + 10 days);
+
+        uint256 rewardsLater = staking.calculateRewards(user1, 1);
+        assertGt(rewardsLater, rewardsAfterCancel);
+
+        vm.startPrank(owner);
+        token.approve(address(staking), rewardsLater);
+        staking.depositTreasury(rewardsLater);
+        vm.stopPrank();
+
+        uint256 userBalanceBefore = token.balanceOf(user1);
+        vm.prank(user1);
+        staking.claimRewards(1);
+        uint256 userBalanceAfter = token.balanceOf(user1);
+        assertEq(userBalanceAfter - userBalanceBefore, rewardsLater);
+    }
+
+    function test_ClaimThenRequestThenCancelSameTimestampDoesNotStallAccrual() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.warp(block.timestamp + 10 days);
+
+        vm.prank(user1);
+        staking.claimRewards(1);
+
+        vm.prank(user1);
+        staking.requestWithdraw(1, 1000 ether);
+
+        vm.prank(user1);
+        staking.cancelWithdrawRequest(1);
+
+        uint256 rewardsNow = staking.calculateRewards(user1, 1);
+        assertEq(rewardsNow, 0);
+
+        vm.warp(block.timestamp + 10 days);
+        uint256 rewardsLater = staking.calculateRewards(user1, 1);
+        assertGt(rewardsLater, 0);
+    }
+
     function test_RewardsDoNotAccrueAfterWithdrawRequest() public {
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -400,8 +464,8 @@ contract ProgressiveStakingTest is Test {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
-        ProgressiveStaking.StakePosition memory beforePosition = staking.getStakeByStakeId(user1, 1);
-        uint256 lastClaimBefore = beforePosition.lastClaimTime;
+        uint256 rewardsAtRequest = staking.calculateRewards(user1, 1);
+        assertGt(rewardsAtRequest, 0);
 
         vm.warp(block.timestamp + 91 days);
 
@@ -415,12 +479,17 @@ contract ProgressiveStakingTest is Test {
 
         ProgressiveStaking.StakePosition memory afterPosition = staking.getStakeByStakeId(user1, 1);
         assertEq(afterPosition.amount, 500 ether);
-        assertEq(afterPosition.lastClaimTime, lastClaimBefore);
+
+        // Rewards that were accrued before requestWithdraw should remain claimable even if treasury was insufficient
+        // during executeWithdraw.
+        uint256 rewardsAfterExecute = staking.calculateRewards(user1, 1);
+        assertGe(rewardsAfterExecute, rewardsAtRequest);
 
         uint256 userBalanceBefore = token.balanceOf(user1);
 
         vm.startPrank(owner);
-        staking.depositTreasury(100 ether);
+        token.approve(address(staking), rewardsAfterExecute);
+        staking.depositTreasury(rewardsAfterExecute);
         vm.stopPrank();
 
         vm.prank(user1);

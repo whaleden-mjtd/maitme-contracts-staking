@@ -83,6 +83,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     mapping(address => mapping(uint256 => bool)) private hasPendingWithdraw;
     mapping(address => mapping(uint256 => uint256)) private stakeIdToWithdrawIndex;
     mapping(address => mapping(uint256 => uint256)) private withdrawFreezeTime;
+    mapping(address => mapping(uint256 => uint256)) private frozenRewards;
     mapping(address => bool) public isFounder;
 
     TierConfig[MAX_TIERS] public tiers;
@@ -199,7 +200,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         if (!stakeIdExists[msg.sender][stakeId]) revert InvalidStakeId();
 
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
-        uint256 rewards = _calculatePositionRewards(msg.sender, positionIndex);
+        uint256 rewards = frozenRewards[msg.sender][stakeId] + _calculatePositionRewards(msg.sender, positionIndex);
 
         if (rewards == 0) revert NoRewardsToClaim();
         if (treasuryBalance < rewards) revert InsufficientTreasury();
@@ -212,6 +213,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         userStakes[msg.sender][positionIndex].lastClaimTime = effectiveNow;
         if (withdrawFreezeTime[msg.sender][stakeId] != 0 && !hasPendingWithdraw[msg.sender][stakeId]) {
             withdrawFreezeTime[msg.sender][stakeId] = 0;
+        }
+        if (frozenRewards[msg.sender][stakeId] != 0) {
+            frozenRewards[msg.sender][stakeId] = 0;
         }
         treasuryBalance -= rewards;
 
@@ -229,25 +233,40 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         uint256 effectiveNowGlobal = block.timestamp;
 
+        uint256[] memory owed = new uint256[](length);
+        uint256[] memory effectiveNowPerPosition = new uint256[](length);
+
         for (uint256 i = 0; i < length; i++) {
-            uint256 rewards = _calculatePositionRewards(msg.sender, i);
+            uint256 stakeId = userStakes[msg.sender][i].stakeId;
+            uint256 rewards = frozenRewards[msg.sender][stakeId] + _calculatePositionRewards(msg.sender, i);
             if (rewards > 0) {
-                uint256 stakeId = userStakes[msg.sender][i].stakeId;
                 uint256 effectiveNow = effectiveNowGlobal;
                 if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
                     effectiveNow = withdrawFreezeTime[msg.sender][stakeId];
                 }
 
-                userStakes[msg.sender][i].lastClaimTime = effectiveNow;
-                if (withdrawFreezeTime[msg.sender][stakeId] != 0 && !hasPendingWithdraw[msg.sender][stakeId]) {
-                    withdrawFreezeTime[msg.sender][stakeId] = 0;
-                }
+                owed[i] = rewards;
+                effectiveNowPerPosition[i] = effectiveNow;
                 totalRewards += rewards;
             }
         }
 
         if (totalRewards == 0) revert NoRewardsToClaim();
         if (treasuryBalance < totalRewards) revert InsufficientTreasury();
+
+        for (uint256 i = 0; i < length; i++) {
+            if (owed[i] > 0) {
+                uint256 stakeId = userStakes[msg.sender][i].stakeId;
+
+                userStakes[msg.sender][i].lastClaimTime = effectiveNowPerPosition[i];
+                if (withdrawFreezeTime[msg.sender][stakeId] != 0 && !hasPendingWithdraw[msg.sender][stakeId]) {
+                    withdrawFreezeTime[msg.sender][stakeId] = 0;
+                }
+                if (frozenRewards[msg.sender][stakeId] != 0) {
+                    frozenRewards[msg.sender][stakeId] = 0;
+                }
+            }
+        }
 
         treasuryBalance -= totalRewards;
 
@@ -279,7 +298,13 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         // Check if user has too many pending withdrawals
         if (pendingWithdrawCount[msg.sender] >= MAX_PENDING_WITHDRAWALS) revert TooManyPendingWithdrawals();
 
+        uint256 rewardsToFreeze = _calculatePositionRewards(msg.sender, positionIndex);
+        if (rewardsToFreeze > 0) {
+            frozenRewards[msg.sender][stakeId] += rewardsToFreeze;
+        }
+
         withdrawFreezeTime[msg.sender][stakeId] = block.timestamp;
+        position.lastClaimTime = block.timestamp;
 
         uint256 availableAt = block.timestamp + NOTICE_PERIOD;
 
@@ -320,27 +345,20 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
         StakePosition storage position = userStakes[msg.sender][positionIndex];
 
-        // Claim any pending rewards first
-        uint256 rewards = _calculatePositionRewards(msg.sender, positionIndex);
-        uint256 effectiveNow = block.timestamp;
-        if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
-            effectiveNow = withdrawFreezeTime[msg.sender][stakeId];
-        }
-        bool rewardsPaid = false;
+        uint256 rewards = frozenRewards[msg.sender][stakeId];
         if (rewards > 0 && treasuryBalance >= rewards) {
             treasuryBalance -= rewards;
+            frozenRewards[msg.sender][stakeId] = 0;
             stakingToken.safeTransfer(msg.sender, rewards);
-            rewardsPaid = true;
             emit RewardsClaimed(msg.sender, stakeId, rewards, block.timestamp);
         }
 
         uint256 withdrawAmount = request.amount;
         position.amount -= withdrawAmount;
-        if (rewards == 0 || rewardsPaid) {
-            position.lastClaimTime = effectiveNow;
-            if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
-                withdrawFreezeTime[msg.sender][stakeId] = 0;
-            }
+
+        position.lastClaimTime = block.timestamp;
+        if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
+            withdrawFreezeTime[msg.sender][stakeId] = 0;
         }
         totalStaked -= withdrawAmount;
 
@@ -349,6 +367,12 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         // If position is empty, remove it
         if (position.amount == 0) {
+            if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
+                withdrawFreezeTime[msg.sender][stakeId] = 0;
+            }
+            if (frozenRewards[msg.sender][stakeId] != 0) {
+                frozenRewards[msg.sender][stakeId] = 0;
+            }
             _removePosition(msg.sender, positionIndex);
         }
 
@@ -375,26 +399,17 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
 
         uint256 positionIndex = stakeIdToIndex[msg.sender][stakeId];
 
-        // Settle rewards up to the freeze timestamp (if any) to prevent rewards accruing during a pending request.
-        uint256 rewards = _calculatePositionRewards(msg.sender, positionIndex);
-        uint256 effectiveNow = block.timestamp;
-        if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
-            effectiveNow = withdrawFreezeTime[msg.sender][stakeId];
-        }
-
-        bool rewardsPaid = false;
+        uint256 rewards = frozenRewards[msg.sender][stakeId];
         if (rewards > 0 && treasuryBalance >= rewards) {
             treasuryBalance -= rewards;
+            frozenRewards[msg.sender][stakeId] = 0;
             stakingToken.safeTransfer(msg.sender, rewards);
-            rewardsPaid = true;
             emit RewardsClaimed(msg.sender, stakeId, rewards, block.timestamp);
         }
 
-        if (rewards == 0 || rewardsPaid) {
-            userStakes[msg.sender][positionIndex].lastClaimTime = effectiveNow;
-            if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
-                withdrawFreezeTime[msg.sender][stakeId] = 0;
-            }
+        userStakes[msg.sender][positionIndex].lastClaimTime = block.timestamp;
+        if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
+            withdrawFreezeTime[msg.sender][stakeId] = 0;
         }
 
         hasPendingWithdraw[msg.sender][stakeId] = false;
@@ -428,6 +443,13 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
             // Clean up pending withdraw mappings
             if (hasPendingWithdraw[msg.sender][stakeId]) {
                 hasPendingWithdraw[msg.sender][stakeId] = false;
+            }
+
+            if (withdrawFreezeTime[msg.sender][stakeId] != 0) {
+                withdrawFreezeTime[msg.sender][stakeId] = 0;
+            }
+            if (frozenRewards[msg.sender][stakeId] != 0) {
+                frozenRewards[msg.sender][stakeId] = 0;
             }
         }
 
@@ -542,6 +564,15 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 positionIndex = stakeIdToIndex[fromUser][stakeId];
         StakePosition memory position = userStakes[fromUser][positionIndex];
 
+        if (withdrawFreezeTime[fromUser][stakeId] != 0) {
+            withdrawFreezeTime[toUser][stakeId] = withdrawFreezeTime[fromUser][stakeId];
+            withdrawFreezeTime[fromUser][stakeId] = 0;
+        }
+        if (frozenRewards[fromUser][stakeId] != 0) {
+            frozenRewards[toUser][stakeId] += frozenRewards[fromUser][stakeId];
+            frozenRewards[fromUser][stakeId] = 0;
+        }
+
         // Remove from original owner
         _removePosition(fromUser, positionIndex);
 
@@ -578,7 +609,7 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     /// @return Pending reward amount in tokens
     function calculateRewards(address user, uint256 stakeId) external view returns (uint256) {
         if (!stakeIdExists[user][stakeId]) revert InvalidStakeId();
-        return _calculatePositionRewards(user, stakeIdToIndex[user][stakeId]);
+        return frozenRewards[user][stakeId] + _calculatePositionRewards(user, stakeIdToIndex[user][stakeId]);
     }
 
     /// @notice Calculate total pending rewards across all positions
@@ -588,7 +619,8 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         uint256 total = 0;
         uint256 length = userStakes[user].length;
         for (uint256 i = 0; i < length; i++) {
-            total += _calculatePositionRewards(user, i);
+            uint256 stakeId = userStakes[user][i].stakeId;
+            total += frozenRewards[user][stakeId] + _calculatePositionRewards(user, i);
         }
         return total;
     }
