@@ -95,6 +95,10 @@ const { stakeHash } = await client.stakeWithApproval(amount);
 | `cancelWithdrawRequest(stakeId)` | Cancel pending withdrawal |
 | `emergencyWithdraw()` | Emergency withdraw (only in emergency mode) |
 
+Notes:
+- For partial withdrawals (`amount < position.amount`), the contract creates a new stake position for the withdrawing portion with a new `stakeId`.
+- Use `getActivePendingWithdrawals(address)` to retrieve the pending request `stakeId` you should pass to `executeWithdraw` / `cancelWithdrawRequest`.
+
 ### Admin Methods
 
 These methods require ADMIN_ROLE or DEFAULT_ADMIN_ROLE:

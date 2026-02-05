@@ -25,12 +25,12 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(attacker);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         vm.prank(attacker);
         vm.expectRevert(ProgressiveStaking.TooManyPendingWithdrawals.selector);
-        staking.requestWithdraw(11, 50 ether);
+        staking.requestWithdraw(11, 100 ether);
 
         vm.prank(user1);
         staking.stake(1000 ether);
@@ -50,12 +50,12 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(user1);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         vm.prank(user1);
         vm.expectRevert(ProgressiveStaking.TooManyPendingWithdrawals.selector);
-        staking.requestWithdraw(11, 50 ether);
+        staking.requestWithdraw(11, 100 ether);
     }
 
     /// @notice Test that executing withdrawal frees up pending slot
@@ -67,7 +67,7 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(user1);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         vm.warp(block.timestamp + 90 days);
@@ -76,7 +76,7 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
         staking.executeWithdraw(1);
 
         vm.prank(user1);
-        staking.requestWithdraw(11, 50 ether);
+        staking.requestWithdraw(11, 100 ether);
     }
 
     /// @notice Test that cancelling withdrawal frees up pending slot
@@ -88,14 +88,14 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(user1);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         vm.prank(user1);
         staking.cancelWithdrawRequest(5);
 
         vm.prank(user1);
-        staking.requestWithdraw(11, 50 ether);
+        staking.requestWithdraw(11, 100 ether);
     }
 
     /// @notice Test O(1) pending withdraw check with mapping
@@ -108,15 +108,19 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         assertEq(staking.pendingWithdrawCount(user1), 1);
 
         vm.prank(user1);
         vm.expectRevert(ProgressiveStaking.PositionHasPendingWithdraw.selector);
-        staking.requestWithdraw(1, 200 ether);
+        staking.requestWithdraw(withdrawStakeId, 200 ether);
 
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         assertEq(staking.pendingWithdrawCount(user1), 0);
 
@@ -134,13 +138,13 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(user1);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         uint256 gasBefore = gasleft();
         vm.prank(user1);
         vm.expectRevert(ProgressiveStaking.PositionHasPendingWithdraw.selector);
-        staking.requestWithdraw(1, 10 ether);
+        staking.requestWithdraw(1, 100 ether);
         uint256 gasUsed = gasBefore - gasleft();
 
         assertLt(gasUsed, 50_000, "Gas cost too high for pending check");
@@ -154,7 +158,7 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
         }
         for (uint256 i = 1; i <= 10; i++) {
             vm.prank(user1);
-            staking.requestWithdraw(i, 50 ether);
+            staking.requestWithdraw(i, 100 ether);
         }
 
         vm.prank(user2);
@@ -162,7 +166,7 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         uint256 gasBefore = gasleft();
         vm.prank(user2);
-        staking.requestWithdraw(11, 500 ether);
+        staking.requestWithdraw(11, 1000 ether);
         uint256 gasUsed = gasBefore - gasleft();
 
         assertLt(gasUsed, 200_000, "User2 affected by user1's state");
@@ -183,7 +187,7 @@ contract ProgressiveStakingDoSTest is ProgressiveStakingBaseTest {
 
         for (uint256 i = 0; i < 50; i++) {
             vm.prank(users[i]);
-            staking.requestWithdraw(i + 1, 500 ether);
+            staking.requestWithdraw(i + 1, 1000 ether);
         }
 
         for (uint256 i = 0; i < 50; i++) {

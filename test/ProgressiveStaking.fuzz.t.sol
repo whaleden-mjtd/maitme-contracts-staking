@@ -95,10 +95,14 @@ contract ProgressiveStakingFuzzTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.requestWithdraw(1, withdrawAmount);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.warp(block.timestamp + 90 days);
 
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         ProgressiveStaking.StakePosition[] memory positions = staking.getStakeInfo(user1);
         assertEq(positions[0].amount, stakeAmount - withdrawAmount);

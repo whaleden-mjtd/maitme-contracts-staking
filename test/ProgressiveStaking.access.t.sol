@@ -180,11 +180,15 @@ contract ProgressiveStakingAccessTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.prank(owner);
         staking.pause();
 
         vm.prank(user1);
-        staking.cancelWithdrawRequest(1);
+        staking.cancelWithdrawRequest(withdrawStakeId);
 
         assertEq(staking.pendingWithdrawCount(user1), 0);
     }
@@ -377,9 +381,13 @@ contract ProgressiveStakingAccessTest is ProgressiveStakingBaseTest {
         staking.requestWithdraw(1, 500 ether);
         vm.stopPrank();
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.prank(owner);
         vm.expectRevert(ProgressiveStaking.PositionHasPendingWithdraw.selector);
-        staking.adminTransferStake(user1, 1, user2);
+        staking.adminTransferStake(user1, withdrawStakeId, user2);
     }
 
     /// @notice Test transfer reverts when called by non-admin

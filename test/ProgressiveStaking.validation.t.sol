@@ -86,9 +86,13 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.requestWithdraw(1, 400 ether);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         ProgressiveStaking.StakePosition memory pos = staking.getStakeByStakeId(user1, 1);
         assertEq(pos.amount, 600 ether);
@@ -119,9 +123,13 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.prank(user1);
         vm.expectRevert(ProgressiveStaking.PositionHasPendingWithdraw.selector);
-        staking.requestWithdraw(1, 300 ether);
+        staking.requestWithdraw(withdrawStakeId, 300 ether);
     }
 
     /// @notice Test insufficient treasury for rewards
@@ -221,9 +229,13 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         staking.requestWithdraw(1, 500 ether);
         vm.stopPrank();
 
+        ProgressiveStaking.WithdrawRequest[] memory firstRequests = staking.getActivePendingWithdrawals(user1);
+        assertEq(firstRequests.length, 1);
+        uint256 firstWithdrawStakeId = firstRequests[0].stakeId;
+
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(firstWithdrawStakeId);
 
         vm.prank(user1);
         staking.requestWithdraw(1, 200 ether);
@@ -251,13 +263,17 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         ProgressiveStaking.WithdrawRequest[] memory active = staking.getActivePendingWithdrawals(user1);
         assertEq(active.length, 3);
 
+        uint256 withdrawStakeId1 = active[0].stakeId;
+        uint256 withdrawStakeId2 = active[1].stakeId;
+        uint256 withdrawStakeId3 = active[2].stakeId;
+
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(2);
+        staking.executeWithdraw(withdrawStakeId2);
 
         ProgressiveStaking.WithdrawRequest[] memory allAfterExec = staking.getPendingWithdrawals(user1);
         for (uint256 i = 0; i < allAfterExec.length; i++) {
-            if (allAfterExec[i].stakeId == 2) {
+            if (allAfterExec[i].stakeId == withdrawStakeId2) {
                 assertEq(allAfterExec[i].executed, true);
                 assertEq(allAfterExec[i].cancelled, false);
             }
@@ -267,11 +283,11 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         assertEq(active.length, 2);
 
         vm.prank(user1);
-        staking.cancelWithdrawRequest(1);
+        staking.cancelWithdrawRequest(withdrawStakeId1);
 
         ProgressiveStaking.WithdrawRequest[] memory allAfterCancel = staking.getPendingWithdrawals(user1);
         for (uint256 i = 0; i < allAfterCancel.length; i++) {
-            if (allAfterCancel[i].stakeId == 1) {
+            if (allAfterCancel[i].stakeId == withdrawStakeId1) {
                 assertEq(allAfterCancel[i].executed, true);
                 assertEq(allAfterCancel[i].cancelled, true);
             }
@@ -279,7 +295,7 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
 
         active = staking.getActivePendingWithdrawals(user1);
         assertEq(active.length, 1);
-        assertEq(active[0].stakeId, 3);
+        assertEq(active[0].stakeId, withdrawStakeId3);
     }
 
     // ============ Token Balance Consistency Tests ============
@@ -304,9 +320,13 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
 
         vm.prank(user1);
         staking.requestWithdraw(1, 2000 ether);
+
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         contractBalance = token.balanceOf(address(staking));
         assertEq(contractBalance, staking.totalStaked() + staking.getTreasuryBalance());
@@ -383,8 +403,8 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
         for (uint256 cycle = 0; cycle < 5; cycle++) {
             // Request withdrawals for 2 positions per cycle
             vm.startPrank(user1);
-            staking.requestWithdraw(cycle * 2 + 1, 50 ether);
-            staking.requestWithdraw(cycle * 2 + 2, 50 ether);
+            staking.requestWithdraw(cycle * 2 + 1, 100 ether);
+            staking.requestWithdraw(cycle * 2 + 2, 100 ether);
             vm.stopPrank();
 
             vm.warp(block.timestamp + 90 days);
@@ -409,7 +429,7 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
 
         // User can still create new requests
         vm.prank(user1);
-        staking.requestWithdraw(11, 50 ether);
+        staking.requestWithdraw(11, 100 ether);
         assertEq(staking.pendingWithdrawCount(user1), 1);
     }
 

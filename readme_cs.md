@@ -129,7 +129,12 @@ function stake(uint256 amount) external {
 **3měsíční výpovědní lhůta:**
 1. `requestWithdraw(stakeId, amount)` - zahájí 90denní odpočet
 2. Po 90 dnech: `executeWithdraw(stakeId)` - skutečný výběr tokenů
-3. Během výpovědní lhůty: výpočet rewards pro danou pozici se zmrazí na čas requestu (rewards se během pending requestu nezvyšují)
+3. Během výpovědní lhůty: výpočet rewards pro část ve výpovědi se zmrazí na čas requestu (rewards se během pending requestu nezvyšují)
+
+**Částečný výběr (partial withdraw):**
+- Pokud `amount < position.amount`, contract vytvoří novou stake pozici pro část ve výpovědi s novým `stakeId`.
+- Původní `stakeId` zůstává aktivní a během výpovědní lhůty dál akumuluje rewards.
+- `executeWithdraw` / `cancelWithdrawRequest` je potřeba volat s `stakeId` z vytvořené výpovědi (viz `getActivePendingWithdrawals`).
 
 #### Poznámky k provozu (custody / Web2 integrace)
 

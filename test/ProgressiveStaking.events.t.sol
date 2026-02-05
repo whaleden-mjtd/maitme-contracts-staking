@@ -60,7 +60,7 @@ contract ProgressiveStakingEventsTest is ProgressiveStakingBaseTest {
 
         vm.prank(user1);
         vm.expectEmit(true, true, false, true);
-        emit ProgressiveStaking.WithdrawRequested(user1, 1, 500 ether, block.timestamp, expectedAvailableAt);
+        emit ProgressiveStaking.WithdrawRequested(user1, 2, 500 ether, block.timestamp, expectedAvailableAt);
         staking.requestWithdraw(1, 500 ether);
     }
 
@@ -90,8 +90,8 @@ contract ProgressiveStakingEventsTest is ProgressiveStakingBaseTest {
 
         vm.prank(user1);
         vm.expectEmit(true, true, false, true);
-        emit ProgressiveStaking.WithdrawCancelled(user1, 1, 500 ether, block.timestamp);
-        staking.cancelWithdrawRequest(1);
+        emit ProgressiveStaking.WithdrawCancelled(user1, 2, 500 ether, block.timestamp);
+        staking.cancelWithdrawRequest(2);
     }
 
     /// @notice Test EmergencyWithdrawn event is emitted correctly

@@ -441,10 +441,14 @@ contract ProgressiveStakingTest is Test {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
         vm.warp(block.timestamp + 91 days);
 
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         // Position should still exist with remaining amount
         assertEq(staking.getUserStakeCount(user1), 1);
@@ -464,7 +468,11 @@ contract ProgressiveStakingTest is Test {
         vm.prank(user1);
         staking.requestWithdraw(1, 500 ether);
 
-        uint256 rewardsAtRequest = staking.calculateRewards(user1, 1);
+        ProgressiveStaking.WithdrawRequest[] memory requests = staking.getActivePendingWithdrawals(user1);
+        assertEq(requests.length, 1);
+        uint256 withdrawStakeId = requests[0].stakeId;
+
+        uint256 rewardsAtRequest = staking.calculateRewards(user1, withdrawStakeId);
         assertGt(rewardsAtRequest, 0);
 
         vm.warp(block.timestamp + 91 days);
@@ -475,7 +483,7 @@ contract ProgressiveStakingTest is Test {
         vm.stopPrank();
 
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(withdrawStakeId);
 
         ProgressiveStaking.StakePosition memory afterPosition = staking.getStakeByStakeId(user1, 1);
         assertEq(afterPosition.amount, 500 ether);
@@ -497,6 +505,23 @@ contract ProgressiveStakingTest is Test {
 
         uint256 userBalanceAfter = token.balanceOf(user1);
         assertGt(userBalanceAfter, userBalanceBefore);
+    }
+
+    function test_PartialWithdrawRemainingStakeContinuesAccruingDuringNoticePeriod() public {
+        vm.prank(user1);
+        staking.stake(1000 ether);
+
+        vm.warp(block.timestamp + 30 days);
+
+        uint256 rewardsBeforeRequest = staking.calculateRewards(user1, 1);
+
+        vm.prank(user1);
+        staking.requestWithdraw(1, 500 ether);
+
+        vm.warp(block.timestamp + 180 days);
+
+        uint256 rewardsAfterRequest = staking.calculateRewards(user1, 1);
+        assertGt(rewardsAfterRequest, rewardsBeforeRequest);
     }
 
     // ============ Admin Tests ============

@@ -314,7 +314,12 @@ function stake(uint256 amount) external {
 **3-month notice period:**
 1. `requestWithdraw(stakeId, amount)` - starts 90-day countdown
 2. After 90 days: `executeWithdraw(stakeId)` - actual token withdrawal
-3. During notice period: reward accrual for the position is frozen at the request time (rewards do not increase while a request is pending)
+3. During notice period: reward accrual for the pending-withdraw portion is frozen at the request time (rewards do not increase while a request is pending)
+
+**Partial withdrawals:**
+- If `amount < position.amount`, the contract creates a new stake position for the withdrawing portion with a new `stakeId`.
+- The original `stakeId` remains active and continues accruing rewards during the notice period.
+- `executeWithdraw` / `cancelWithdrawRequest` must be called with the `stakeId` from the created withdrawal request (see `getActivePendingWithdrawals`).
 
 ```solidity
 struct WithdrawRequest {

@@ -263,9 +263,13 @@ contract ProgressiveStakingTimeTest is ProgressiveStakingBaseTest {
         // First partial withdrawal
         vm.prank(user1);
         staking.requestWithdraw(1, 3000 ether);
+
+        ProgressiveStaking.WithdrawRequest[] memory firstReq = staking.getActivePendingWithdrawals(user1);
+        assertEq(firstReq.length, 1);
+        uint256 firstWithdrawStakeId = firstReq[0].stakeId;
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(firstWithdrawStakeId);
 
         ProgressiveStaking.StakePosition memory pos = staking.getStakeByStakeId(user1, 1);
         assertEq(pos.amount, 7000 ether);
@@ -273,9 +277,13 @@ contract ProgressiveStakingTimeTest is ProgressiveStakingBaseTest {
         // Second partial withdrawal
         vm.prank(user1);
         staking.requestWithdraw(1, 2000 ether);
+
+        ProgressiveStaking.WithdrawRequest[] memory secondReq = staking.getActivePendingWithdrawals(user1);
+        assertEq(secondReq.length, 1);
+        uint256 secondWithdrawStakeId = secondReq[0].stakeId;
         vm.warp(block.timestamp + 90 days);
         vm.prank(user1);
-        staking.executeWithdraw(1);
+        staking.executeWithdraw(secondWithdrawStakeId);
 
         pos = staking.getStakeByStakeId(user1, 1);
         assertEq(pos.amount, 5000 ether);
