@@ -376,10 +376,12 @@ contract ProgressiveStakingValidationTest is ProgressiveStakingBaseTest {
 
     function test_StakeRevertsIfTooManyStakes() public {
         uint256 maxStakes = staking.MAX_STAKES_PER_ADDRESS();
+        uint256 maxPending = staking.MAX_PENDING_WITHDRAWALS();
         uint256 minAmount = staking.MIN_STAKE_AMOUNT();
+        uint256 effectiveMaxStakes = maxStakes - maxPending - 1;
 
         vm.startPrank(user1);
-        for (uint256 i = 0; i < maxStakes; i++) {
+        for (uint256 i = 0; i < effectiveMaxStakes; i++) {
             staking.stake(minAmount);
         }
 

@@ -168,7 +168,9 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
     function stake(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         if (amount < MIN_STAKE_AMOUNT) revert StakeAmountTooLow();
-        if (userStakes[msg.sender].length >= MAX_STAKES_PER_ADDRESS) revert TooManyStakes();
+        if (userStakes[msg.sender].length >= (MAX_STAKES_PER_ADDRESS - MAX_PENDING_WITHDRAWALS - 1)) {
+            revert TooManyStakes();
+        }
         if (emergencyMode) revert EmergencyModeActive();
 
         uint256 stakeId = nextStakeId++;
@@ -609,6 +611,10 @@ contract ProgressiveStaking is ReentrancyGuard, Pausable, AccessControl {
         if (fromUser == toUser) revert TransferToSelf();
         if (!stakeIdExists[fromUser][stakeId]) revert InvalidStakeId();
         if (hasPendingWithdraw[fromUser][stakeId]) revert PositionHasPendingWithdraw();
+
+        if (userStakes[toUser].length >= (MAX_STAKES_PER_ADDRESS - MAX_PENDING_WITHDRAWALS - 1)) {
+            revert TooManyStakes();
+        }
 
         uint256 positionIndex = stakeIdToIndex[fromUser][stakeId];
         StakePosition memory position = userStakes[fromUser][positionIndex];
